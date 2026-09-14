@@ -1,0 +1,71 @@
+{
+  "name": "shodiev-pos",
+  "version": "1.4.0",
+  "description": "Shodiev Optom Market - POS tizimi",
+  "main": "electron/main.js",
+  "author": "Shodiev Optom Market",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5180 && electron .\"",
+    "build:ui": "vite build",
+    "build": "npm run build:ui && electron-builder",
+    "rebuild": "electron-builder install-app-deps",
+    "publish": "npm run build:ui && electron-builder --publish always"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "uz.shodiev.pos",
+    "productName": "Shodiev POS",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "assets/logo*.png",
+      "!electron/_sinov.js"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Shodiev POS"
+    },
+    "npmRebuild": false,
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "joxa-cyber",
+        "repo": "Shodiev-POS"
+      }
+    ]
+  }
+}
