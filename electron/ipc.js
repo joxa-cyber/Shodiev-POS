@@ -145,6 +145,14 @@ function avansniIshlat(mijoz_id, sotuv_id) {
   return qism;
 }
 
+  // Tovar shtrix-kodlarini yangilaydi (eskilarini olib tashlab, yangilarini yozadi)
+  function barcodelarniYoz(tovar_id, kodlar) {
+    const db2 = db();
+    db2.prepare('DELETE FROM tovar_barcode WHERE tovar_id = ?').run(tovar_id);
+    const q = db2.prepare('INSERT OR IGNORE INTO tovar_barcode (tovar_id, kod) VALUES (?,?)');
+    for (const k of kodlar) q.run(tovar_id, k);
+  }
+
 function foydalanuvchiYuklash(row) {
   const filiallar = db()
     .prepare(
@@ -373,12 +381,14 @@ const amallar = {
     const q = `%${String(qidiruv).trim().toLowerCase()}%`;
     return db()
       .prepare(
-        `SELECT t.*, COALESCE(o.qoldiq,0) AS qoldiq, k.nomi AS kategoriya
+        `SELECT t.*, COALESCE(o.qoldiq,0) AS qoldiq, k.nomi AS kategoriya,
+                (SELECT GROUP_CONCAT(b.kod, ',') FROM tovar_barcode b WHERE b.tovar_id = t.id) AS barcodelar
          FROM tovarlar t
          LEFT JOIN ombor o ON o.tovar_id = t.id AND o.filial_id = @fid
          LEFT JOIN kategoriyalar k ON k.id = t.kategoriya_id
          WHERE t.aktiv = 1
-           AND (@q = '%%' OR lower(t.nomi) LIKE @q OR t.barcode LIKE @q)
+           AND (@q = '%%' OR lower(t.nomi) LIKE @q
+                OR EXISTS (SELECT 1 FROM tovar_barcode b WHERE b.tovar_id = t.id AND b.kod LIKE @q))
            ${kategoriya_id ? 'AND t.kategoriya_id = @kategoriya_id' : ''}
            ${faqatKam ? 'AND COALESCE(o.qoldiq,0) <= t.min_qoldiq' : ''}
          ORDER BY t.nomi LIMIT @limit`
@@ -389,13 +399,36 @@ const amallar = {
   'tovar.barcode'({ kod, filial_id }) {
     const u = kirganmi();
     const fid = filial_id || (u.filiallar[0] && u.filiallar[0].id) || 1;
+    const k = String(kod).trim();
     return db()
       .prepare(
-        `SELECT t.*, COALESCE(o.qoldiq,0) AS qoldiq FROM tovarlar t
+        `SELECT t.*, COALESCE(o.qoldiq,0) AS qoldiq,
+                (SELECT GROUP_CONCAT(b2.kod, ',') FROM tovar_barcode b2 WHERE b2.tovar_id = t.id) AS barcodelar
+         FROM tovarlar t
          LEFT JOIN ombor o ON o.tovar_id = t.id AND o.filial_id = ?
-         WHERE t.barcode = ? AND t.aktiv = 1 LIMIT 1`
+         WHERE t.aktiv = 1 AND (
+           t.id = (SELECT b.tovar_id FROM tovar_barcode b WHERE b.kod = ? LIMIT 1)
+           OR t.barcode = ?
+         )
+         LIMIT 1`
       )
-      .get(fid, String(kod).trim());
+      .get(fid, k, k);
+  },
+
+  // Shtrix-kod band emasmi (boshqa tovarga biriktirilmaganmi)
+  'tovar.barcodeTekshir'({ kod, tovar_id }) {
+    kirganmi();
+    const k = String(kod).trim();
+    if (!k) return { bosh: true };
+    const r = db()
+      .prepare(
+        `SELECT b.tovar_id, t.nomi FROM tovar_barcode b
+         JOIN tovarlar t ON t.id = b.tovar_id
+         WHERE b.kod = ? AND t.aktiv = 1 LIMIT 1`
+      )
+      .get(k);
+    if (!r || r.tovar_id === tovar_id) return { bosh: true };
+    return { bosh: false, tovar_id: r.tovar_id, nomi: r.nomi };
   },
 
   'tovar.saqla'(t) {
@@ -412,9 +445,34 @@ const amallar = {
     } else if (!t.kategoriya && t.id) {
       kategoriya_id = null;
     }
+    // Shtrix-kodlar: massiv yoki bitta matn bo'lishi mumkin
+    const kodlar = [
+      ...(Array.isArray(t.barcodelar) ? t.barcodelar : String(t.barcodelar || '').split(',')),
+      t.barcode,
+    ]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+      .filter((x, i, a) => a.indexOf(x) === i);
+
+    // Kodlar band emasligini OLDINDAN tekshiramiz -
+    // aks holda tovar yaratilib, keyin xato chiqib, chala yozuv qolib ketadi
+    for (const k of kodlar) {
+      const band = db()
+        .prepare(
+          `SELECT b.tovar_id, t2.nomi FROM tovar_barcode b
+           JOIN tovarlar t2 ON t2.id = b.tovar_id
+           WHERE b.kod = ? AND b.tovar_id <> ?`
+        )
+        .get(k, t.id || 0);
+      talab(
+        !band,
+        `«${k}» shtrix-kodi allaqachon «${band ? band.nomi : ''}» tovariga biriktirilgan`
+      );
+    }
+
     const maydonlar = {
       nomi: String(t.nomi).trim(),
-      barcode: t.barcode ? String(t.barcode).trim() : null,
+      barcode: kodlar[0] || null,
       kategoriya_id,
       blok_soni: Number(t.blok_soni) || 0,
       sotuv_narx: Number(t.sotuv_narx) || 0,
@@ -435,6 +493,7 @@ const amallar = {
            WHERE id=@id`
         )
         .run({ ...maydonlar, tan_narx: Number(t.tan_narx) || 0, id: t.id });
+      barcodelarniYoz(t.id, kodlar);
       return t.id;
     }
     const info = db()
@@ -447,6 +506,7 @@ const amallar = {
     // ham, ombor qiymatida ham to'g'ri ko'rinadi va tozalashda yo'qolmaydi.
     const fid = t.filial_id || (joriy.filiallar[0] && joriy.filiallar[0].id) || 1;
     const tovarId = info.lastInsertRowid;
+    barcodelarniYoz(tovarId, kodlar);
     const qoldiq = Number(t.qoldiq) || 0;
     if (qoldiq > 0) {
       const tanNarx = Number(t.tan_narx) || 0;

@@ -56,6 +56,21 @@ function migratsiya() {
     // to'lov farqi: manfiy = qo'shib yuborildi, musbat = qaytim olinmadi
     ['sotuvlar', 'yaxlitlash', 'REAL NOT NULL DEFAULT 0'],
   ];
+  // Eski yagona shtrix-kodlarni yangi jadvalga ko'chiramiz (bir marta)
+  try {
+    const bor = db.prepare('SELECT COUNT(*) AS n FROM tovar_barcode').get().n;
+    if (bor === 0) {
+      const kochirildi = db
+        .prepare(
+          `INSERT OR IGNORE INTO tovar_barcode (tovar_id, kod)
+           SELECT id, TRIM(barcode) FROM tovarlar
+           WHERE barcode IS NOT NULL AND TRIM(barcode) <> ''`
+        )
+        .run();
+      if (kochirildi.changes) console.log(`migratsiya: ${kochirildi.changes} ta shtrix-kod ko'chirildi`);
+    }
+  } catch {}
+
   for (const [jadval, ustun, tur] of yangiUstunlar) {
     const bor = db.prepare(`PRAGMA table_info(${jadval})`).all().some((c) => c.name === ustun);
     if (!bor) {

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { amal, pul, miqdorFmt } from '../api.js';
+import { amal, pul, miqdorFmt, blokDona } from '../api.js';
 import { Modal } from '../components/Ui.jsx';
 
 export default function Sotuv({ user, filial, toast, savatlar, setSavatlar, faolId, setFaolId }) {
@@ -67,7 +67,9 @@ export default function Sotuv({ user, filial, toast, savatlar, setSavatlar, faol
   });
 
   async function barcodeQidir(kod) {
-    const bor = tovarlar.find((t) => t.barcode === kod);
+    const bor = tovarlar.find(
+      (t) => t.barcode === kod || (t.barcodelar || '').split(',').includes(kod)
+    );
     if (bor) {
       qoshish(bor, 1);
       setQidiruv('');
@@ -99,7 +101,7 @@ export default function Sotuv({ user, filial, toast, savatlar, setSavatlar, faol
       .filter(
         (t) =>
           (!kategoriya || t.kategoriya === kategoriya) &&
-          (!q || t.nomi.toLowerCase().includes(q) || (t.barcode || '').includes(q))
+          (!q || t.nomi.toLowerCase().includes(q) || (t.barcodelar || t.barcode || '').includes(q))
       )
       .slice(0, 80);
   }, [qidiruv, tovarlar, kategoriya]);
@@ -221,8 +223,15 @@ export default function Sotuv({ user, filial, toast, savatlar, setSavatlar, faol
               <div className="tovar-nom">{t.nomi}</div>
               <div className="tovar-narx">{pul(t.sotuv_narx)}</div>
               <div className="qator" style={{ justifyContent: 'space-between' }}>
-                <span className={'tovar-qoldiq ' + (t.qoldiq <= 0 ? 'n-qizil nishon' : '')}>
-                  {t.qoldiq <= 0 ? 'Qoldiq yo‘q' : `${miqdorFmt(t.qoldiq)} dona`}
+                <span
+                  className={'tovar-qoldiq ' + (t.qoldiq <= 0 ? 'n-qizil nishon' : '')}
+                  title={t.blok_soni > 1 ? blokDona(t.qoldiq, t.blok_soni) : ''}
+                >
+                  {t.qoldiq <= 0
+                    ? 'Qoldiq yo‘q'
+                    : t.blok_soni > 1 && t.qoldiq >= t.blok_soni
+                    ? `${miqdorFmt(t.qoldiq)} dona · ${blokDona(t.qoldiq, t.blok_soni)}`
+                    : `${miqdorFmt(t.qoldiq)} dona`}
                 </span>
                 {t.blok_soni > 1 && (
                   <button

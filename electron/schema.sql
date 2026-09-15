@@ -219,3 +219,15 @@ CREATE TABLE IF NOT EXISTS qarz_taqsim (
 );
 CREATE INDEX IF NOT EXISTS idx_taqsim_sotuv ON qarz_taqsim(sotuv_id);
 CREATE INDEX IF NOT EXISTS idx_taqsim_tolov ON qarz_taqsim(tolov_id);
+
+-- ============ SHTRIX-KODLAR ============
+-- Bitta tovarda bir nechta shtrix-kod bo'lishi mumkin (ixtiyoriy).
+-- Masalan eski va yangi qadoq, yoki ishlab chiqaruvchi kodni o'zgartirgan holat.
+CREATE TABLE IF NOT EXISTS tovar_barcode (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tovar_id INTEGER NOT NULL REFERENCES tovarlar(id) ON DELETE CASCADE,
+  kod TEXT NOT NULL,
+  yaratilgan TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_barcode_kod ON tovar_barcode(kod);
+CREATE INDEX IF NOT EXISTS idx_barcode_tovar ON tovar_barcode(tovar_id);

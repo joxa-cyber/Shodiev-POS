@@ -40,3 +40,13 @@ export function vaqtChiroyli(s) {
   if (!s) return '';
   return `${sanaChiroyli(s)} ${s.slice(11, 16)}`;
 }
+
+// Miqdorni blok va dona ko'rinishida: 238 dona, blokda 24 ta -> "9 blok 22 dona"
+export function blokDona(miqdor, blok_soni) {
+  const m = Number(miqdor) || 0;
+  const b = Number(blok_soni) || 0;
+  if (b <= 1 || Math.abs(m) < b) return `${miqdorFmt(m)} dona`;
+  const bloklar = Math.floor(Math.abs(m) / b) * (m < 0 ? -1 : 1);
+  const qoldiq = Math.round((Math.abs(m) - Math.abs(bloklar) * b) * 100) / 100;
+  return qoldiq > 0 ? `${bloklar} blok ${miqdorFmt(qoldiq)} dona` : `${bloklar} blok`;
+}

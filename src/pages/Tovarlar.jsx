@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { amal, pul, miqdorFmt } from '../api.js';
+import { amal, pul, miqdorFmt, blokDona } from '../api.js';
 import { Modal, Tasdiq } from '../components/Ui.jsx';
 import KategoriyaOyna from '../components/KategoriyaOyna.jsx';
 
@@ -41,7 +41,9 @@ export default function Tovarlar({ user, filial, toast }) {
     const q = qidiruv.trim().toLowerCase();
     return royxat.filter(
       (t) =>
-        (!q || t.nomi.toLowerCase().includes(q) || (t.barcode || '').includes(q)) &&
+        (!q ||
+          t.nomi.toLowerCase().includes(q) ||
+          (t.barcodelar || t.barcode || '').includes(q)) &&
         (!katFiltr || t.kategoriya === katFiltr) &&
         (!faqatKam || t.qoldiq <= t.min_qoldiq)
     );
@@ -136,7 +138,17 @@ export default function Tovarlar({ user, filial, toast }) {
                   <div className="qalin">{t.nomi}</div>
                   {t.kategoriya && <div className="xira kichik">{t.kategoriya}</div>}
                 </td>
-                <td className="xira kichik">{t.barcode || '—'}</td>
+                <td className="xira kichik">
+                  {t.barcodelar ? (
+                    t.barcodelar.split(',').map((k) => (
+                      <div key={k} style={{ fontFamily: 'monospace' }}>
+                        {k}
+                      </div>
+                    ))
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td className="ong">{t.blok_soni > 1 ? `${t.blok_soni} dona` : '—'}</td>
                 <td className="ong">
                   <span
@@ -144,8 +156,13 @@ export default function Tovarlar({ user, filial, toast }) {
                       'nishon ' + (t.qoldiq <= 0 ? 'n-qizil' : t.qoldiq <= t.min_qoldiq ? 'n-sariq' : 'n-yashil')
                     }
                   >
-                    {miqdorFmt(t.qoldiq)}
+                    {miqdorFmt(t.qoldiq)} dona
                   </span>
+                  {t.blok_soni > 1 && t.qoldiq >= t.blok_soni && (
+                    <div className="xira kichik" style={{ marginTop: 3 }}>
+                      {blokDona(t.qoldiq, t.blok_soni)}
+                    </div>
+                  )}
                 </td>
                 {narxKoradi && <td className="ong xira">{pul(t.tan_narx)}</td>}
                 <td className="ong qalin">{pul(t.sotuv_narx)}</td>
@@ -216,7 +233,12 @@ function TovarOyna({ tovar, yop, saqla, kategoriyalar, narxKoradi, filial, toast
 
   useEffect(() => {
     if (tovar) {
-      setF({ ...BOSH, ...tovar, kategoriya: tovar.kategoriya || '' });
+      setF({
+        ...BOSH,
+        ...tovar,
+        kategoriya: tovar.kategoriya || '',
+        kodlar: tovar.barcodelar ? tovar.barcodelar.split(',') : tovar.barcode ? [tovar.barcode] : [''],
+      });
       setYangiKat(false);
       setTimeout(() => nomRef.current?.focus(), 50);
     }
@@ -252,7 +274,10 @@ function TovarOyna({ tovar, yop, saqla, kategoriyalar, narxKoradi, filial, toast
           <button className="btn" onClick={yop}>
             Bekor
           </button>
-          <button className="btn btn-yashil" onClick={() => saqla(f)}>
+          <button
+            className="btn btn-yashil"
+            onClick={() => saqla({ ...f, barcodelar: (f.kodlar || []).filter(Boolean) })}
+          >
             Saqlash
           </button>
         </>
@@ -265,8 +290,39 @@ function TovarOyna({ tovar, yop, saqla, kategoriyalar, narxKoradi, filial, toast
 
       <div className="ustun-2">
         <div className="maydon">
-          <label className="yorliq">Shtrix-kod (skanerni shu yerda o'qiting)</label>
-          <input className="inp" value={f.barcode || ''} onChange={oz('barcode')} placeholder="Ixtiyoriy" />
+          <label className="yorliq">Shtrix-kod(lar) — ixtiyoriy</label>
+          {(f.kodlar || ['']).map((kod, i) => (
+            <div className="qator" key={i} style={{ marginBottom: 6 }}>
+              <input
+                className="inp"
+                value={kod}
+                onChange={(e) => {
+                  const yangi = [...(f.kodlar || [''])];
+                  yangi[i] = e.target.value.trim();
+                  setF({ ...f, kodlar: yangi });
+                }}
+                placeholder={i === 0 ? "Skanerni shu yerda o'qiting" : 'Qo\u2018shimcha kod'}
+              />
+              {(f.kodlar || ['']).length > 1 && (
+                <button
+                  className="btn btn-kichik"
+                  title="Bu kodni olib tashlash"
+                  onClick={() => setF({ ...f, kodlar: f.kodlar.filter((_, j) => j !== i) })}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            className="btn btn-kichik"
+            onClick={() => setF({ ...f, kodlar: [...(f.kodlar || ['']), ''] })}
+          >
+            + Yana shtrix-kod
+          </button>
+          <div className="xira kichik" style={{ marginTop: 6 }}>
+            Ba'zi suvlarda 2 xil kod bo'ladi — ikkalasini ham qo'shsangiz, qaysi biri o'qilsa ham tovar topiladi.
+          </div>
         </div>
         <div className="maydon">
           <label className="yorliq">Kategoriya</label>
