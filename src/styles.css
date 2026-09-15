@@ -65,7 +65,7 @@ input, textarea { user-select: text; }
 .yon-btn.faol { background: var(--yashil); color: #fff; box-shadow: 0 3px 10px rgba(15, 158, 99, .25); }
 .yon-past { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
 
-.asosiy { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.asosiy { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
 .tepa {
   height: 58px; background: var(--fon2); border-bottom: 1px solid var(--chegara);
@@ -157,11 +157,14 @@ table.jadval { width: 100%; border-collapse: collapse; }
 }
 
 /* ---------- Sotuv ekrani ---------- */
-.sotuv { display: flex; height: 100%; }
-.sotuv-chap { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 14px; gap: 10px; }
+.sotuv { display: flex; height: 100%; min-height: 0; overflow: hidden; }
+.sotuv-chap {
+  flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  padding: 14px; gap: 10px;
+}
 .sotuv-ong {
   width: 470px; background: var(--fon2); border-left: 1px solid var(--chegara);
-  display: flex; flex-direction: column; flex-shrink: 0;
+  display: flex; flex-direction: column; flex-shrink: 0; min-height: 0;
 }
 
 .qidiruv-qator { display: flex; gap: 10px; }
@@ -182,7 +185,7 @@ table.jadval { width: 100%; border-collapse: collapse; }
 .chip.faol { background: var(--yashil); border-color: var(--yashil); color: #fff; }
 
 .tovar-setka {
-  flex: 1; overflow: auto; display: grid; gap: 10px;
+  flex: 1; min-height: 0; overflow: auto; display: grid; gap: 10px;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); align-content: start; padding-bottom: 4px;
 }
 .tovar-karta {
@@ -196,8 +199,11 @@ table.jadval { width: 100%; border-collapse: collapse; }
 .tovar-narx { font-size: 18px; font-weight: 800; color: var(--yashil); }
 .tovar-qoldiq { font-size: 12px; color: var(--xira); }
 
-.savat-tepa { padding: 14px 16px; border-bottom: 1px solid var(--chegara); display: flex; align-items: center; gap: 10px; }
-.savat-royxat { flex: 1; overflow: auto; padding: 8px 10px; }
+.savat-tepa {
+  padding: 14px 16px; border-bottom: 1px solid var(--chegara); display: flex;
+  align-items: center; gap: 10px; flex-shrink: 0;
+}
+.savat-royxat { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px; }
 .savat-qator {
   display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px; border-radius: 10px;
   border-bottom: 1px solid var(--chegara2);
@@ -215,11 +221,14 @@ table.jadval { width: 100%; border-collapse: collapse; }
   color: var(--matn); border-radius: 8px; padding: 5px; font-weight: 700; outline: none;
 }
 .miqdor-inp:focus { border-color: var(--yashil); }
-.savat-past { border-top: 1px solid var(--chegara); padding: 14px 16px; display: grid; gap: 10px; background: var(--fon4); }
+.savat-past {
+  border-top: 1px solid var(--chegara); padding: 14px 16px; display: grid; gap: 10px;
+  background: var(--fon4); flex-shrink: 0;
+}
 .jami-qator { display: flex; justify-content: space-between; align-items: baseline; }
 .jami-summa { font-size: 32px; font-weight: 800; color: var(--yashil); }
 
-.bosh-savat { flex: 1; display: grid; place-items: center; color: var(--xira); text-align: center; gap: 8px; }
+.bosh-savat { flex: 1; min-height: 0; display: grid; place-items: center; color: var(--xira); text-align: center; gap: 8px; }
 
 /* ---------- Panel ---------- */
 .stat-setka { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }

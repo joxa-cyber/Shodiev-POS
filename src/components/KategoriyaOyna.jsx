@@ -206,9 +206,10 @@ export default function KategoriyaOyna({ ochiq, yop, filial, toast, yangilandi }
                         <span className="nishon n-yashil qator-oxiri">{belgilangan.length} ta tanlandi</span>
                       )}
                     </div>
-                    <div className="qator">
+                    <div className="qator" style={{ flexWrap: 'wrap' }}>
                       <select
                         className="inp"
+                        style={{ flex: '1 1 220px' }}
                         value={kochirTo}
                         onChange={(e) => setKochirTo(e.target.value)}
                         disabled={!belgilangan.length}

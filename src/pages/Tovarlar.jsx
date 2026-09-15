@@ -211,11 +211,13 @@ export default function Tovarlar({ user, filial, toast }) {
 
 function TovarOyna({ tovar, yop, saqla, kategoriyalar, narxKoradi, filial, toast, yangilandi }) {
   const [f, setF] = useState(BOSH);
+  const [yangiKat, setYangiKat] = useState(false);
   const nomRef = useRef();
 
   useEffect(() => {
     if (tovar) {
       setF({ ...BOSH, ...tovar, kategoriya: tovar.kategoriya || '' });
+      setYangiKat(false);
       setTimeout(() => nomRef.current?.focus(), 50);
     }
   }, [tovar]);
@@ -268,18 +270,52 @@ function TovarOyna({ tovar, yop, saqla, kategoriyalar, narxKoradi, filial, toast
         </div>
         <div className="maydon">
           <label className="yorliq">Kategoriya</label>
-          <input
-            className="inp"
-            list="kat-royxat"
-            value={f.kategoriya}
-            onChange={oz('kategoriya')}
-            placeholder="Gazli ichimliklar"
-          />
-          <datalist id="kat-royxat">
-            {kategoriyalar.map((k) => (
-              <option key={k.id} value={k.nomi} />
-            ))}
-          </datalist>
+          {yangiKat ? (
+            <div className="qator">
+              <input
+                className="inp"
+                autoFocus
+                value={f.kategoriya}
+                onChange={oz('kategoriya')}
+                placeholder="Yangi kategoriya nomi"
+              />
+              <button
+                className="btn btn-kichik"
+                onClick={() => {
+                  setYangiKat(false);
+                  setF({ ...f, kategoriya: tovar.kategoriya || '' });
+                }}
+              >
+                Bekor
+              </button>
+            </div>
+          ) : (
+            <select
+              className="inp"
+              value={f.kategoriya || ''}
+              onChange={(e) => {
+                if (e.target.value === '__yangi__') {
+                  setYangiKat(true);
+                  setF({ ...f, kategoriya: '' });
+                } else {
+                  setF({ ...f, kategoriya: e.target.value });
+                }
+              }}
+            >
+              <option value="">— Kategoriyasiz —</option>
+              {kategoriyalar.map((k) => (
+                <option key={k.id} value={k.nomi}>
+                  {k.nomi}
+                </option>
+              ))}
+              <option value="__yangi__">➕ Yangi kategoriya yaratish...</option>
+            </select>
+          )}
+          {!yangi && tovar.kategoriya && f.kategoriya !== tovar.kategoriya && (
+            <div className="kichik" style={{ marginTop: 6, color: 'var(--sariq)' }}>
+              «{tovar.kategoriya}» → «{f.kategoriya || 'Kategoriyasiz'}» ga ko'chiriladi
+            </div>
+          )}
         </div>
       </div>
 
