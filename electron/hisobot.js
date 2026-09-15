@@ -49,8 +49,22 @@ function oraliq(dan, gacha, filial_id = null) {
               COALESCE(SUM(naqd),0) AS naqd,
               COALESCE(SUM(karta),0) AS karta,
               COALESCE(SUM(terminal),0) AS terminal,
-              COALESCE(SUM(qarz),0) AS qarz
+              COALESCE(SUM(qarz),0) AS qarz,
+              COALESCE(SUM(yaxlitlash),0) AS yaxlitlash,
+              COALESCE(SUM(CASE WHEN yaxlitlash < 0 THEN 1 ELSE 0 END),0) AS qoshib_soni,
+              COALESCE(SUM(CASE WHEN yaxlitlash > 0 THEN 1 ELSE 0 END),0) AS qaytimsiz_soni
        FROM sotuvlar WHERE sana >= @dan AND sana <= @gacha${filialShart}`
+    )
+    .get(p);
+
+  // Tovar chiqimi: qancha dona chiqdi va tan narxda qancha
+  const chiqim = db
+    .prepare(
+      `SELECT COALESCE(SUM(q.miqdor),0) AS dona,
+              COUNT(DISTINCT q.tovar_id) AS turlar,
+              COALESCE(SUM(q.tan_narx * q.miqdor),0) AS tan_qiymati
+       FROM sotuv_qatorlari q JOIN sotuvlar s ON s.id = q.sotuv_id
+       WHERE s.sana >= @dan AND s.sana <= @gacha${filial_id ? ' AND s.filial_id = @filial_id' : ''}`
     )
     .get(p);
 
@@ -76,8 +90,11 @@ function oraliq(dan, gacha, filial_id = null) {
       `SELECT q.nomi,
               SUM(q.miqdor) AS miqdor,
               SUM(q.summa) AS summa,
-              SUM(q.summa - q.tan_narx * q.miqdor) AS foyda
-       FROM sotuv_qatorlari q JOIN sotuvlar s ON s.id = q.sotuv_id
+              SUM(q.summa - q.tan_narx * q.miqdor) AS foyda,
+              COALESCE(MAX(t.blok_soni), 0) AS blok_soni
+       FROM sotuv_qatorlari q
+       JOIN sotuvlar s ON s.id = q.sotuv_id
+       LEFT JOIN tovarlar t ON t.id = q.tovar_id
        WHERE s.sana >= @dan AND s.sana <= @gacha${filial_id ? ' AND s.filial_id = @filial_id' : ''}
        GROUP BY q.nomi ORDER BY miqdor DESC LIMIT 10`
     )
@@ -115,6 +132,9 @@ function oraliq(dan, gacha, filial_id = null) {
     qarz_tolov: qarzTolov.jami,
     kirim_jami: kirim.jami,
     kirim_soni: kirim.soni,
+    chiqim_dona: chiqim.dona,
+    chiqim_turlar: chiqim.turlar,
+    chiqim_tan: chiqim.tan_qiymati,
     top: topTovar,
     kunlar,
     hodimlar,
@@ -209,17 +229,46 @@ function hisobotMatn(sarlavha, h) {
   l.push(`  🏧 Terminal: ${pul(h.terminal)}`);
   if (h.qarz > 0) l.push(`  📝 Qarzga: ${pul(h.qarz)}`);
   if (h.qarz_tolov > 0) l.push(`  ✅ Qarz to'lovi: ${pul(h.qarz_tolov)}`);
+  if (h.yaxlitlash) {
+    const qoshib = h.qoshib_soni ? `qo'shib yuborildi ${h.qoshib_soni} ta` : '';
+    const qaytimsiz = h.qaytimsiz_soni ? `qaytim olinmadi ${h.qaytimsiz_soni} ta` : '';
+    l.push(
+      `  ⚖️ To'lov farqi: ${h.yaxlitlash > 0 ? '+' : ''}${pul(h.yaxlitlash)}` +
+        (qoshib || qaytimsiz ? ` (${[qoshib, qaytimsiz].filter(Boolean).join(', ')})` : '')
+    );
+  }
   l.push('');
   l.push(`💰 <b>Kassaga tushdi: ${pul(h.kassa_naqd + h.kassa_karta + h.kassa_terminal)} so'm</b>`);
-  if (h.kirim_soni > 0) l.push(`📥 Tovar kirimi: ${pul(h.kirim_jami)} so'm (${h.kirim_soni} ta)`);
+  l.push('');
+  l.push(
+    `📤 Tovar chiqimi: <b>${fmtMiqdor(h.chiqim_dona)} dona</b>` +
+      (h.chiqim_turlar ? ` · ${h.chiqim_turlar} xil tovar` : '')
+  );
+  if (h.chiqim_tan) l.push(`     <i>tan narxda ${pul(h.chiqim_tan)} so'm</i>`);
+  if (h.kirim_soni > 0) {
+    l.push(`📥 Tovar kirimi: <b>${pul(h.kirim_jami)} so'm</b> (${h.kirim_soni} ta hujjat)`);
+  }
   if (h.top && h.top.length) {
     l.push('');
     l.push("<b>Eng ko'p sotilganlar:</b>");
-    h.top.slice(0, 5).forEach((t, i) => {
-      l.push(`  ${i + 1}. ${t.nomi} — ${fmtMiqdor(t.miqdor)} dona · ${pul(t.summa)}`);
+    h.top.slice(0, 7).forEach((t, i) => {
+      l.push(`  ${i + 1}. ${t.nomi}`);
+      l.push(`      ${blokDona(t.miqdor, t.blok_soni)} · ${pul(t.summa)}`);
     });
   }
   return l.join('\n');
+}
+
+// Miqdorni blok va dona ko'rinishida yozadi: 26 dona, blokda 24 ta bo'lsa -> "1 blok 2 dona"
+function blokDona(miqdor, blok_soni) {
+  const m = Number(miqdor) || 0;
+  const b = Number(blok_soni) || 0;
+  if (b <= 1 || m < b) return `${fmtMiqdor(m)} dona`;
+  const bloklar = Math.floor(m / b);
+  const qoldiq = Math.round((m - bloklar * b) * 100) / 100;
+  return qoldiq > 0
+    ? `${bloklar} blok ${fmtMiqdor(qoldiq)} dona (${fmtMiqdor(m)})`
+    : `${bloklar} blok (${fmtMiqdor(m)} dona)`;
 }
 
 function fmtMiqdor(n) {
@@ -249,5 +298,6 @@ module.exports = {
   kassaXulosa,
   hisobotMatn,
   fmtMiqdor,
+  blokDona,
   sanaChiroyli,
 };

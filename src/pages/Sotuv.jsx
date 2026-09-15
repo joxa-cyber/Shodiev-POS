@@ -559,6 +559,7 @@ function TolovOyna({ ochiq, yop, jami, mijoz, mijozlar, mijozTanla, mijozlarniYu
   const [terminal, setTerminal] = useState(0);
   const [qarz, setQarz] = useState(0);
   const [berilgan, setBerilgan] = useState('');
+  const [yaxlitlash, setYaxlitlash] = useState(0); // manfiy = qo'shib yuborildi, musbat = qaytim olinmadi
   const [yuborilmoqda, setYuborilmoqda] = useState(false);
   const naqdRef = useRef();
 
@@ -569,16 +570,19 @@ function TolovOyna({ ochiq, yop, jami, mijoz, mijozlar, mijozTanla, mijozlarniYu
       setTerminal(0);
       setQarz(0);
       setBerilgan('');
+      setYaxlitlash(0);
       setTimeout(() => naqdRef.current?.select(), 60);
     }
   }, [ochiq, jami]);
 
   const tolangan = Number(naqd) + Number(karta) + Number(terminal) + Number(qarz);
-  const farq = jami - tolangan;
+  const chekSummasi = jami + yaxlitlash; // yaxlitlashdan keyingi haqiqiy summa
+  const farq = chekSummasi - tolangan; // musbat = kam berdi, manfiy = ko'p berdi
   const qaytim = Math.max(0, (Number(berilgan) || 0) - Number(naqd));
   const son = (v) => Number(String(v).replace(/[^\d]/g, '')) || 0;
 
   function faqat(usul) {
+    setYaxlitlash(0);
     setNaqd(usul === 'naqd' ? jami : 0);
     setKarta(usul === 'karta' ? jami : 0);
     setTerminal(usul === 'terminal' ? jami : 0);
@@ -601,6 +605,7 @@ function TolovOyna({ ochiq, yop, jami, mijoz, mijozlar, mijozTanla, mijozlarniYu
         karta: Number(karta),
         terminal: Number(terminal),
         qarz: Number(qarz),
+        yaxlitlash,
         qaytim,
       });
     } finally {
@@ -612,7 +617,7 @@ function TolovOyna({ ochiq, yop, jami, mijoz, mijozlar, mijozTanla, mijozlarniYu
     <Modal
       ochiq={ochiq}
       yop={yop}
-      sarlavha={`To‘lov · ${pul(jami)} so‘m`}
+      sarlavha={`To‘lov · ${pul(jami + yaxlitlash)} so‘m`}
       kenglik={640}
       past={
         <>
@@ -755,19 +760,101 @@ function TolovOyna({ ochiq, yop, jami, mijoz, mijozlar, mijozTanla, mijozlarniYu
         </div>
       )}
 
+      {/* Yaxlitlash qilingan bo'lsa - ko'rsatib turamiz */}
+      {yaxlitlash !== 0 && (
+        <div
+          className="karta"
+          style={{
+            marginTop: 8,
+            marginBottom: 8,
+            background: 'var(--kok-och)',
+            borderColor: 'var(--kok)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span>
+            {yaxlitlash < 0 ? 'Qo‘shib yuborildi: ' : 'Qaytim olinmadi: '}
+            <b>
+              {yaxlitlash > 0 ? '+' : ''}
+              {pul(yaxlitlash)} so‘m
+            </b>
+            <div className="xira kichik">
+              Tovarlar summasi {pul(jami)} → chek summasi <b>{pul(chekSummasi)}</b>
+            </div>
+          </span>
+          <button className="btn btn-kichik" onClick={() => setYaxlitlash(0)}>
+            Bekor
+          </button>
+        </div>
+      )}
+
       <div
         className="karta"
         style={{
           marginTop: 8,
-          borderColor: Math.abs(farq) < 1 ? 'var(--yashil)' : 'var(--qizil)',
-          display: 'flex',
-          justifyContent: 'space-between',
+          borderColor: Math.abs(farq) < 1 ? 'var(--yashil)' : 'var(--sariq)',
         }}
       >
-        <span>To‘langan: {pul(tolangan)}</span>
-        <span className="qalin" style={{ color: Math.abs(farq) < 1 ? 'var(--yashil)' : 'var(--qizil)' }}>
-          {Math.abs(farq) < 1 ? '✓ To‘g‘ri' : farq > 0 ? `Kam: ${pul(farq)}` : `Ortiqcha: ${pul(-farq)}`}
-        </span>
+        <div className="qator">
+          <span>To‘langan: {pul(tolangan)}</span>
+          <span
+            className="qalin qator-oxiri"
+            style={{ color: Math.abs(farq) < 1 ? 'var(--yashil)' : 'var(--sariq)' }}
+          >
+            {Math.abs(farq) < 1
+              ? '✓ To‘g‘ri'
+              : farq > 0
+              ? `${pul(farq)} so‘m kam`
+              : `${pul(-farq)} so‘m ortiqcha`}
+          </span>
+        </div>
+
+        {/* Farq bo'lsa - nima qilish kerakligini taklif qilamiz */}
+        {Math.abs(farq) >= 1 && (
+          <div className="qator" style={{ marginTop: 10, flexWrap: 'wrap' }}>
+            {farq > 0 ? (
+              <>
+                <button
+                  className="btn btn-yashil"
+                  onClick={() => setYaxlitlash(yaxlitlash - farq)}
+                  title="Chek summasi shuncha kamayadi, kassa hisobi to'g'ri qoladi"
+                >
+                  ✓ To‘lovni qabul qilish ({pul(farq)} qo‘shib yuborildi)
+                </button>
+                <button
+                  className="btn btn-sariq"
+                  onClick={() => setQarz(Number(qarz) + farq)}
+                  title="Qolgan summa mijozning qarziga yoziladi"
+                >
+                  📝 Qarzga yozish ({pul(farq)})
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="btn btn-kok"
+                  onClick={() => setYaxlitlash(yaxlitlash - farq)}
+                  title="Mijoz qaytimni olmadi - chek summasi shuncha oshadi"
+                >
+                  💸 Qaytim kerak emas ({pul(-farq)} qoldi)
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    const kamaytir = -farq;
+                    if (Number(naqd) >= kamaytir) setNaqd(Number(naqd) - kamaytir);
+                    else if (Number(karta) >= kamaytir) setKarta(Number(karta) - kamaytir);
+                    else if (Number(terminal) >= kamaytir) setTerminal(Number(terminal) - kamaytir);
+                  }}
+                >
+                  Ortiqchasini olib tashlash
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

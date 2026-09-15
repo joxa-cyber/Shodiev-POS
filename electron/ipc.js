@@ -786,9 +786,13 @@ const amallar = {
     const karta = Number(data.karta) || 0;
     const terminal = Number(data.terminal) || 0;
     const qarz = Number(data.qarz) || 0;
-    const jami = qatorlar.reduce((s, q) => s + Number(q.miqdor) * Number(q.narx), 0);
+    // yaxlitlash: manfiy = qo'shib yuborildi (mijoz kam berdi),
+    //             musbat = qaytim olinmadi (mijoz ko'p qoldirdi)
+    const yaxlitlash = Math.round(Number(data.yaxlitlash) || 0);
+    const tovarlarSummasi = qatorlar.reduce((s, q) => s + Number(q.miqdor) * Number(q.narx), 0);
+    const jami = tovarlarSummasi + yaxlitlash;
     const tolangan = naqd + karta + terminal + qarz;
-    talab(Math.abs(tolangan - jami) < 1, "To'lov summasi jami summaga teng emas");
+    talab(Math.abs(tolangan - jami) < 1, "To'lov summasi chek summasiga teng emas");
     if (qarz > 0) talab(data.mijoz_id, 'Qarzga sotish uchun mijozni tanlang');
 
     const natija = db().transaction(() => {
@@ -819,8 +823,8 @@ const amallar = {
 
       const info = db()
         .prepare(
-          `INSERT INTO sotuvlar (raqam, filial_id, foydalanuvchi_id, mijoz_id, jami, tan_jami, naqd, karta, terminal, qarz, qarz_qoldiq, izoh)
-           VALUES (@raqam, @filial_id, @foydalanuvchi_id, @mijoz_id, @jami, @tan_jami, @naqd, @karta, @terminal, @qarz, @qarz, @izoh)`
+          `INSERT INTO sotuvlar (raqam, filial_id, foydalanuvchi_id, mijoz_id, jami, tan_jami, naqd, karta, terminal, qarz, qarz_qoldiq, yaxlitlash, izoh)
+           VALUES (@raqam, @filial_id, @foydalanuvchi_id, @mijoz_id, @jami, @tan_jami, @naqd, @karta, @terminal, @qarz, @qarz, @yaxlitlash, @izoh)`
         )
         .run({
           raqam,
@@ -833,6 +837,7 @@ const amallar = {
           karta,
           terminal,
           qarz,
+          yaxlitlash,
           izoh: data.izoh || '',
         });
       const sotuvId = info.lastInsertRowid;

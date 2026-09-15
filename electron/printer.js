@@ -87,6 +87,18 @@ function chekHtml(sotuv, qatorlar, qosh = {}) {
   <table>${qatorHtml}</table>
   <div class="qalin-chiziq"></div>
   <table>
+    ${
+      sotuv.yaxlitlash
+        ? `<tr class="tolov"><td>Tovarlar summasi</td><td class="summa" style="font-weight:400">${H.pul(
+            sotuv.jami - sotuv.yaxlitlash
+          )}</td></tr>
+           <tr class="tolov"><td>${
+             sotuv.yaxlitlash < 0 ? "Qo'shib yuborildi" : 'Qaytim olinmadi'
+           }</td><td class="summa" style="font-weight:400">${
+            sotuv.yaxlitlash > 0 ? '+' : ''
+          }${H.pul(sotuv.yaxlitlash)}</td></tr>`
+        : ''
+    }
     <tr class="jami-qator"><td>JAMI</td><td class="summa">${H.pul(sotuv.jami)}</td></tr>
     ${tolovQator
       .map((t) => `<tr class="tolov"><td>${t[0]}</td><td class="summa" style="font-weight:400">${H.pul(t[1])}</td></tr>`)

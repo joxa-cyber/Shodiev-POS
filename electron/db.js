@@ -53,6 +53,8 @@ function migratsiya() {
     ['mijozlar', 'avans', 'REAL NOT NULL DEFAULT 0'], // ortiqcha to'langan pul
     ['sotuvlar', 'avans_ishlatildi', 'REAL NOT NULL DEFAULT 0'], // shu chekda ishlatilgan avans
     ['telegram_navbat', 'chat_id', "TEXT DEFAULT ''"], // xabar qaysi chatga ketadi
+    // to'lov farqi: manfiy = qo'shib yuborildi, musbat = qaytim olinmadi
+    ['sotuvlar', 'yaxlitlash', 'REAL NOT NULL DEFAULT 0'],
   ];
   for (const [jadval, ustun, tur] of yangiUstunlar) {
     const bor = db.prepare(`PRAGMA table_info(${jadval})`).all().some((c) => c.name === ustun);

@@ -100,6 +100,16 @@ export default function Savdo({ user, filial, toast }) {
                     <td className="kichik">{c.mijoz || '—'}</td>
                     <td className="ong qalin">{pul(c.jami)}</td>
                     <td className="kichik">
+                      {c.yaxlitlash ? (
+                        <span
+                          className={'nishon ' + (c.yaxlitlash < 0 ? 'n-sariq' : 'n-kok')}
+                          style={{ marginRight: 4 }}
+                          title={c.yaxlitlash < 0 ? "Qo'shib yuborilgan" : 'Qaytim olinmagan'}
+                        >
+                          {c.yaxlitlash > 0 ? '+' : ''}
+                          {pul(c.yaxlitlash)}
+                        </span>
+                      ) : null}
                       {c.naqd > 0 && <span className="nishon n-yashil" style={{ marginRight: 4 }}>naqd</span>}
                       {c.karta > 0 && <span className="nishon n-kok" style={{ marginRight: 4 }}>karta</span>}
                       {c.terminal > 0 && <span className="nishon n-kok" style={{ marginRight: 4 }}>terminal</span>}
