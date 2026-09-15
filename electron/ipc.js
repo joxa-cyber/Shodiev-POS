@@ -8,6 +8,7 @@ const TG = require('./telegram');
 const Printer = require('./printer');
 const Backup = require('./backup');
 const Yangilanish = require('./yangilanish');
+const TrayModul = require('./tray');
 
 let joriy = null; // tizimga kirgan foydalanuvchi
 
@@ -649,6 +650,115 @@ const amallar = {
       jami_qarz: cheklar.reduce((s, c) => s + c.qarz, 0),
       jami_tolangan: cheklar.reduce((s, c) => s + c.tolangan, 0),
       qoldiq: mijoz.qarz,
+    };
+  },
+
+  // Qarz tarixi: qarz olgan barcha mijozlar, holati bilan
+  // holat: 'hammasi' | 'qarzdor' | 'yopilgan'
+  'qarz.mijozlar'({ holat = 'hammasi', qidiruv = '' } = {}) {
+    kirganmi();
+    const q = `%${String(qidiruv).trim().toLowerCase()}%`;
+    const rows = db()
+      .prepare(
+        `SELECT m.id, m.ism, m.telefon, m.izoh, m.qarz, m.avans,
+                COALESCE(s.qarzga_olgan, 0) AS qarzga_olgan,
+                COALESCE(s.cheklar, 0) AS cheklar,
+                COALESCE(s.ochiq_cheklar, 0) AS ochiq_cheklar,
+                s.birinchi, s.oxirgi_qarz,
+                COALESCE(t.tolangan, 0) AS tolangan,
+                t.oxirgi_tolov
+         FROM mijozlar m
+         LEFT JOIN (
+           SELECT mijoz_id,
+                  SUM(qarz) AS qarzga_olgan,
+                  COUNT(*) AS cheklar,
+                  SUM(CASE WHEN qarz_qoldiq > 0.4 THEN 1 ELSE 0 END) AS ochiq_cheklar,
+                  MIN(sana) AS birinchi,
+                  MAX(sana) AS oxirgi_qarz
+           FROM sotuvlar WHERE qarz > 0 GROUP BY mijoz_id
+         ) s ON s.mijoz_id = m.id
+         LEFT JOIN (
+           SELECT mijoz_id, SUM(summa) AS tolangan, MAX(sana) AS oxirgi_tolov
+           FROM qarz_tolovlar GROUP BY mijoz_id
+         ) t ON t.mijoz_id = m.id
+         WHERE m.aktiv = 1 AND (COALESCE(s.cheklar,0) > 0 OR m.qarz <> 0)
+           AND (@q = '%%' OR lower(m.ism) LIKE @q OR m.telefon LIKE @q)
+         ORDER BY m.qarz DESC, s.oxirgi_qarz DESC`
+      )
+      .all({ q });
+
+    const natija = rows.map((r) => {
+      const status =
+        r.qarz > 0.4
+          ? r.tolangan > 0
+            ? 'qisman'
+            : 'qarzdor'
+          : r.qarz < -0.4
+          ? 'avans'
+          : 'yopilgan';
+      return {
+        ...r,
+        status,
+        status_nomi:
+          status === 'yopilgan'
+            ? "To'liq to'langan"
+            : status === 'qisman'
+            ? "Qisman to'langan"
+            : status === 'avans'
+            ? 'Oldindan to\'lov (avans)'
+            : 'Qarzdor',
+      };
+    });
+
+    if (holat === 'qarzdor') return natija.filter((x) => x.status === 'qarzdor' || x.status === 'qisman');
+    if (holat === 'yopilgan') return natija.filter((x) => x.status === 'yopilgan' || x.status === 'avans');
+    return natija;
+  },
+
+  // Barcha qarz harakatlari (vaqt bo'yicha): qarzga sotuv va to'lovlar
+  'qarz.harakatlar'({ dan, gacha, mijoz_id, limit = 300 } = {}) {
+    kirganmi();
+    const p = {
+      dan: dan || '2000-01-01',
+      gacha: (gacha || H.bugun()) + ' 23:59:59',
+      mijoz_id: mijoz_id || null,
+      limit,
+    };
+    const sotuvlar = db()
+      .prepare(
+        `SELECT s.id, s.raqam, s.sana, s.qarz AS summa, s.qarz_qoldiq, s.jami,
+                m.ism AS mijoz, m.id AS mijoz_id, f.ism AS hodim
+         FROM sotuvlar s
+         LEFT JOIN mijozlar m ON m.id = s.mijoz_id
+         LEFT JOIN foydalanuvchilar f ON f.id = s.foydalanuvchi_id
+         WHERE s.qarz > 0 AND s.sana >= @dan AND s.sana <= @gacha
+           ${mijoz_id ? 'AND s.mijoz_id = @mijoz_id' : ''}
+         ORDER BY s.id DESC LIMIT @limit`
+      )
+      .all(p)
+      .map((x) => ({
+        tur: 'qarz',
+        ...x,
+        holat: x.qarz_qoldiq > 0.4 ? (x.qarz_qoldiq < x.summa ? 'qisman' : 'ochiq') : 'yopilgan',
+      }));
+
+    const tolovlar = db()
+      .prepare(
+        `SELECT t.id, t.sana, t.summa, t.usul, t.izoh, m.ism AS mijoz, m.id AS mijoz_id, f.ism AS hodim
+         FROM qarz_tolovlar t
+         LEFT JOIN mijozlar m ON m.id = t.mijoz_id
+         LEFT JOIN foydalanuvchilar f ON f.id = t.foydalanuvchi_id
+         WHERE t.sana >= @dan AND t.sana <= @gacha ${mijoz_id ? 'AND t.mijoz_id = @mijoz_id' : ''}
+         ORDER BY t.id DESC LIMIT @limit`
+      )
+      .all(p)
+      .map((x) => ({ tur: 'tolov', ...x }));
+
+    const hammasi = [...sotuvlar, ...tolovlar].sort((a, b) => (a.sana < b.sana ? 1 : -1));
+    return {
+      harakatlar: hammasi.slice(0, limit),
+      jami_qarzga: sotuvlar.reduce((s, x) => s + x.summa, 0),
+      jami_tolov: tolovlar.reduce((s, x) => s + x.summa, 0),
     };
   },
 
@@ -1634,6 +1744,23 @@ const amallar = {
     // Yangilanishdan keyin qayta login qilmasin - seansni eslab qolamiz
     DB.sozlamaSaqla('qayta_kirish', JSON.stringify({ id: u.id, vaqt: Date.now() }));
     return Yangilanish.ornat();
+  },
+
+  // ---------- FON REJIMI ----------
+  'tizim.fonHolati'() {
+    kirganmi();
+    return {
+      fon_rejimi: DB.sozlama('fon_rejimi', '1') === '1',
+      avto_ishga_tushish: app.getLoginItemSettings().openAtLogin,
+    };
+  },
+
+  'tizim.fonSozla'({ fon_rejimi, avto_ishga_tushish }) {
+    rahbar();
+    if (fon_rejimi !== undefined) DB.sozlamaSaqla('fon_rejimi', fon_rejimi ? '1' : '0');
+    if (avto_ishga_tushish !== undefined) TrayModul.avtoIshgaTushirish(!!avto_ishga_tushish);
+    TrayModul.menyuYangila();
+    return amallar['tizim.fonHolati']();
   },
 
   // ---------- TIZIM ----------

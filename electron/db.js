@@ -89,6 +89,8 @@ const STANDART_SOZLAMALAR = {
   backup_telegram: '1',
   backup_kunlar: '14',
   joriy_filial: '1',
+  fon_rejimi: '1',
+  avto_ishga_tushish: '0',
 };
 
 function boshlangichMalumot() {

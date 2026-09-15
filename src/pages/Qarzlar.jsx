@@ -2,22 +2,34 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { amal, pul, miqdorFmt, vaqtChiroyli, sanaChiroyli } from '../api.js';
 import { Modal } from '../components/Ui.jsx';
 
+const NISHON = { qarzdor: 'n-qizil', qisman: 'n-sariq', yopilgan: 'n-yashil', avans: 'n-kok' };
+
 export default function Qarzlar({ user, filial, toast }) {
   const [royxat, setRoyxat] = useState([]);
   const [qidiruv, setQidiruv] = useState('');
+  const [holat, setHolat] = useState('qarzdor');
   const [tanlangan, setTanlangan] = useState(null); // tafsilot
   const [tolov, setTolov] = useState(null);
+  const [harakatlar, setHarakatlar] = useState(null);
+  const [korinish, setKorinish] = useState('mijozlar');
   const rahbarmi = user.rol === 'rahbar';
 
   const yukla = useCallback(() => {
-    amal('mijoz.royxat', { qidiruv, faqatQarzdor: true })
+    amal('qarz.mijozlar', { qidiruv, holat })
       .then(setRoyxat)
       .catch((e) => toast.xato(e.message));
-  }, [qidiruv]);
+  }, [qidiruv, holat]);
+
+  useEffect(() => {
+    if (korinish === 'tarix') {
+      amal('qarz.harakatlar', { limit: 300 }).then(setHarakatlar).catch(() => {});
+    }
+  }, [korinish]);
 
   useEffect(yukla, [yukla]);
 
-  const jami = royxat.reduce((s, m) => s + m.qarz, 0);
+  const jami = royxat.reduce((s, m) => s + Math.max(0, m.qarz), 0);
+  const jamiTolangan = royxat.reduce((s, m) => s + m.tolangan, 0);
 
   async function tafsilotOch(mijoz_id) {
     try {
@@ -29,17 +41,42 @@ export default function Qarzlar({ user, filial, toast }) {
 
   return (
     <div className="sahifa">
+      <div className="tab-qator">
+        <button className={'tab' + (korinish === 'mijozlar' ? ' faol' : '')} onClick={() => setKorinish('mijozlar')}>
+          Mijozlar
+        </button>
+        <button className={'tab' + (korinish === 'tarix' ? ' faol' : '')} onClick={() => setKorinish('tarix')}>
+          Qarz tarixi
+        </button>
+      </div>
+
+      {korinish === 'mijozlar' && (
+      <>
       <div className="qator" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
         <input
           className="inp"
-          style={{ maxWidth: 320 }}
+          style={{ maxWidth: 300 }}
           placeholder="Mijoz ismi yoki telefoni..."
           value={qidiruv}
           onChange={(e) => setQidiruv(e.target.value)}
         />
+        <div className="chip-qator">
+          {[
+            ['qarzdor', 'Qarzdorlar'],
+            ['yopilgan', 'Yopilganlar'],
+            ['hammasi', 'Hammasi'],
+          ].map(([k, n]) => (
+            <button key={k} className={'chip' + (holat === k ? ' faol' : '')} onClick={() => setHolat(k)}>
+              {n}
+            </button>
+          ))}
+        </div>
         <div className="karta" style={{ padding: '8px 16px' }}>
-          Umumiy qarz: <b style={{ color: 'var(--sariq)', fontSize: 18 }}>{pul(jami)} so'm</b>
-          <span className="xira kichik"> · {royxat.length} ta mijoz</span>
+          Qoldiq qarz: <b style={{ color: 'var(--sariq)', fontSize: 18 }}>{pul(jami)} so'm</b>
+          <span className="xira kichik">
+            {' '}
+            · qaytgan: <b style={{ color: 'var(--yashil)' }}>{pul(jamiTolangan)}</b> · {royxat.length} ta mijoz
+          </span>
         </div>
         {rahbarmi && (
           <button
@@ -69,8 +106,10 @@ export default function Qarzlar({ user, filial, toast }) {
           <thead>
             <tr>
               <th>Mijoz</th>
-              <th>Telefon</th>
-              <th className="ong">Qarz</th>
+              <th>Holat</th>
+              <th className="ong">Qarzga olgan</th>
+              <th className="ong">To'lagan</th>
+              <th className="ong">Qoldiq</th>
               <th className="ong">Amallar</th>
             </tr>
           </thead>
@@ -79,38 +118,146 @@ export default function Qarzlar({ user, filial, toast }) {
               <tr key={m.id}>
                 <td>
                   <div className="qalin">{m.ism}</div>
-                  {m.izoh && <div className="xira kichik">{m.izoh}</div>}
+                  <div className="xira kichik">
+                    {m.telefon || 'telefon yo\u2018q'}
+                    {m.cheklar > 0 ? ` \u00b7 ${m.cheklar} ta chek` : ''}
+                    {m.oxirgi_qarz ? ` \u00b7 oxirgi: ${sanaChiroyli(m.oxirgi_qarz)}` : ''}
+                  </div>
                 </td>
-                <td className="kichik">{m.telefon || '—'}</td>
+                <td>
+                  <span className={'nishon ' + NISHON[m.status]}>{m.status_nomi}</span>
+                  {m.ochiq_cheklar > 0 && (
+                    <div className="xira kichik" style={{ marginTop: 3 }}>
+                      {m.ochiq_cheklar} ta ochiq chek
+                    </div>
+                  )}
+                </td>
+                <td className="ong">{pul(m.qarzga_olgan)}</td>
+                <td className="ong" style={{ color: 'var(--yashil)' }}>
+                  {pul(m.tolangan)}
+                </td>
                 <td className="ong">
-                  <span className="nishon n-sariq" style={{ fontSize: 14 }}>
-                    {pul(m.qarz)}
-                  </span>
+                  {m.qarz > 0.4 ? (
+                    <b style={{ color: 'var(--sariq)', fontSize: 15 }}>{pul(m.qarz)}</b>
+                  ) : m.qarz < -0.4 ? (
+                    <span className="nishon n-kok">avans {pul(-m.qarz)}</span>
+                  ) : (
+                    <span className="nishon n-yashil">\u2713 0</span>
+                  )}
                 </td>
                 <td className="ong">
                   <button className="btn btn-kichik" onClick={() => tafsilotOch(m.id)}>
                     Tafsilot
                   </button>
-                  <button
-                    className="btn btn-kichik btn-yashil"
-                    style={{ marginLeft: 6 }}
-                    onClick={() => setTolov(m)}
-                  >
-                    To'lov qabul qilish
-                  </button>
+                  {m.qarz > 0.4 && (
+                    <button className="btn btn-kichik btn-yashil" style={{ marginLeft: 6 }} onClick={() => setTolov(m)}>
+                      To'lov
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
             {!royxat.length && (
               <tr>
-                <td colSpan={4} className="markaz xira" style={{ padding: 34 }}>
-                  Qarzdor yo'q ✓
+                <td colSpan={6} className="markaz xira" style={{ padding: 34 }}>
+                  {holat === 'qarzdor' ? "Qarzdor yo'q \u2713" : "Ma'lumot yo'q"}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      </>
+      )}
+
+      {korinish === 'tarix' &&
+        (harakatlar ? (
+          <>
+            <div className="stat-setka" style={{ marginBottom: 14 }}>
+              <div className="stat">
+                <div className="stat-yorliq">Jami qarzga berilgan</div>
+                <div className="stat-qiymat" style={{ color: 'var(--sariq)' }}>
+                  {pul(harakatlar.jami_qarzga)}
+                </div>
+              </div>
+              <div className="stat">
+                <div className="stat-yorliq">Jami qaytarilgan</div>
+                <div className="stat-qiymat" style={{ color: 'var(--yashil)' }}>
+                  {pul(harakatlar.jami_tolov)}
+                </div>
+              </div>
+              <div className="stat">
+                <div className="stat-yorliq">Farq</div>
+                <div className="stat-qiymat">{pul(harakatlar.jami_qarzga - harakatlar.jami_tolov)}</div>
+              </div>
+            </div>
+
+            <div className="karta" style={{ padding: 0, overflow: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+              <table className="jadval">
+                <thead>
+                  <tr>
+                    <th>Sana</th>
+                    <th>Nima bo'ldi</th>
+                    <th>Mijoz</th>
+                    <th>Kim</th>
+                    <th className="ong">Summa</th>
+                    <th>Holat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {harakatlar.harakatlar.map((h) => (
+                    <tr key={h.tur + h.id}>
+                      <td className="kichik">{vaqtChiroyli(h.sana)}</td>
+                      <td>
+                        {h.tur === 'qarz' ? (
+                          <>
+                            <span className="nishon n-sariq">Qarzga berildi</span>
+                            <span className="xira kichik"> \u2116{h.raqam}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="nishon n-yashil">To'lov qabul qilindi</span>
+                            <span className="xira kichik"> {h.usul}</span>
+                            {h.izoh && <div className="xira kichik">{h.izoh}</div>}
+                          </>
+                        )}
+                      </td>
+                      <td className="kichik qalin">{h.mijoz || '\u2014'}</td>
+                      <td className="kichik xira">{h.hodim}</td>
+                      <td
+                        className="ong qalin"
+                        style={{ color: h.tur === 'qarz' ? 'var(--sariq)' : 'var(--yashil)' }}
+                      >
+                        {h.tur === 'qarz' ? '+' : '\u2212'}
+                        {pul(h.summa)}
+                      </td>
+                      <td>
+                        {h.tur === 'qarz' &&
+                          (h.holat === 'yopilgan' ? (
+                            <span className="nishon n-yashil">To'langan</span>
+                          ) : h.holat === 'qisman' ? (
+                            <span className="nishon n-sariq">Qoldi: {pul(h.qarz_qoldiq)}</span>
+                          ) : (
+                            <span className="nishon n-qizil">To'lanmagan</span>
+                          ))}
+                      </td>
+                    </tr>
+                  ))}
+                  {!harakatlar.harakatlar.length && (
+                    <tr>
+                      <td colSpan={6} className="markaz xira" style={{ padding: 34 }}>
+                        Hali qarz operatsiyalari bo'lmagan
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <div className="yuklanmoqda">Yuklanmoqda...</div>
+        ))}
 
       <Tafsilot
         d={tanlangan}

@@ -12,6 +12,7 @@ export default function Sozlamalar({ toast }) {
   const [tasdiq, setTasdiq] = useState(null);
   const [kategoriyalar, setKategoriyalar] = useState([]);
   const [dastur, setDastur] = useState(null);
+  const [fon, setFon] = useState(null);
 
   useEffect(() => {
     amal('sozlama.hammasi').then(setS).catch((e) => toast.xato(e.message));
@@ -19,6 +20,7 @@ export default function Sozlamalar({ toast }) {
     amal('backup.royxat').then(setBackuplar).catch(() => {});
     amal('kategoriya.royxat').then(setKategoriyalar).catch(() => {});
     amal('yangilanish.holat').then(setDastur).catch(() => {});
+    amal('tizim.fonHolati').then(setFon).catch(() => {});
   }, []);
 
   if (!s) return <div className="yuklanmoqda">Yuklanmoqda...</div>;
@@ -288,6 +290,46 @@ export default function Sozlamalar({ toast }) {
             <p className="xira kichik" style={{ marginTop: 12 }}>
               Maslahat: tozalashdan oldin «Zaxira nusxa» bo'limidan nusxa olib qo'ying.
             </p>
+          </div>
+        )}
+
+        {tab === 'dastur' && fon && (
+          <div className="karta" style={{ marginBottom: 14 }}>
+            <h4 style={{ fontSize: 15, marginBottom: 6 }}>Fon rejimi</h4>
+            <p className="xira kichik" style={{ marginBottom: 14, lineHeight: 1.6 }}>
+              Fon rejimi yoqilgan bo'lsa, dastur oynasini yopganingizda ham u soat yonidagi belgida
+              ishlashda davom etadi. Shunda <b>Telegram bot javob beraveradi</b>, savdo xabarlari va
+              zaxira nusxa yuboriladi. Butunlay yopish uchun belgini o'ng tugma bilan bosib
+              «Butunlay chiqish» ni tanlaysiz.
+            </p>
+            <label className="qator kichik" style={{ gap: 8, padding: '5px 0' }}>
+              <input
+                type="checkbox"
+                checked={fon.fon_rejimi}
+                onChange={async (e) => {
+                  const r = await amal('tizim.fonSozla', { fon_rejimi: e.target.checked });
+                  setFon(r);
+                  toast.ok(e.target.checked ? 'Fon rejimi yoqildi' : "Fon rejimi o'chirildi");
+                }}
+              />
+              Oyna yopilganda dastur fonda ishlashda davom etsin (tavsiya etiladi)
+            </label>
+            <label className="qator kichik" style={{ gap: 8, padding: '5px 0' }}>
+              <input
+                type="checkbox"
+                checked={fon.avto_ishga_tushish}
+                onChange={async (e) => {
+                  const r = await amal('tizim.fonSozla', { avto_ishga_tushish: e.target.checked });
+                  setFon(r);
+                  toast.ok(
+                    e.target.checked
+                      ? 'Kompyuter yoqilganda dastur o\u2018zi ishga tushadi'
+                      : 'Avtomatik ishga tushish o\u2018chirildi'
+                  );
+                }}
+              />
+              Kompyuter yoqilganda dastur avtomatik ishga tushsin (fonda)
+            </label>
           </div>
         )}
 

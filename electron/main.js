@@ -5,6 +5,7 @@ const IPC = require('./ipc');
 const TG = require('./telegram');
 const Backup = require('./backup');
 const Yangilanish = require('./yangilanish');
+const TrayModul = require('./tray');
 
 const DEV = !app.isPackaged;
 let asosiyOyna = null;
@@ -15,11 +16,23 @@ if (!qulf) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (asosiyOyna) {
-      if (asosiyOyna.isMinimized()) asosiyOyna.restore();
-      asosiyOyna.focus();
-    }
+    oynaniKorsat();
   });
+}
+
+// Oynani ko'rsatish (traydan yoki ikkinchi nusxa ochilganda)
+function oynaniKorsat() {
+  if (!asosiyOyna) {
+    oynaYarat();
+    asosiyOyna.once('ready-to-show', () => {
+      asosiyOyna.maximize();
+      asosiyOyna.show();
+    });
+    return;
+  }
+  if (!asosiyOyna.isVisible()) asosiyOyna.show();
+  if (asosiyOyna.isMinimized()) asosiyOyna.restore();
+  asosiyOyna.focus();
 }
 
 function oynaYarat() {
@@ -49,10 +62,14 @@ function oynaYarat() {
     asosiyOyna.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
 
+  const fondaOchildi = process.argv.includes('--fon');
   asosiyOyna.once('ready-to-show', () => {
+    if (fondaOchildi) return; // kompyuter yoqilganda jimgina fonda turadi
     asosiyOyna.maximize();
     asosiyOyna.show();
   });
+
+  TrayModul.yopishniUshla(asosiyOyna);
 
   asosiyOyna.on('closed', () => {
     asosiyOyna = null;
@@ -65,6 +82,7 @@ app.whenReady().then(() => {
   TG.ishgaTushir();
   Backup.avtoBackupIshgaTushir();
   oynaYarat();
+  TrayModul.ishgaTushir(oynaniKorsat);
   Yangilanish.ishgaTushir(asosiyOyna);
 
   // F12 - dasturchi paneli (muammo bo'lganda tekshirish uchun)
@@ -77,13 +95,20 @@ app.whenReady().then(() => {
   });
 });
 
+// Oyna yopilganda dastur fon rejimida qolishi mumkin (Telegram bot ishlashi uchun)
 app.on('window-all-closed', async () => {
+  if (DB.sozlama('fon_rejimi', '1') === '1' && !TrayModul.chiqishBelgisi()) {
+    return; // trayda ishlashda davom etamiz
+  }
   try {
-    // yopishdan oldin oxirgi zaxira va navbatni yuborishga urinamiz
     await TG.navbatniYubor();
   } catch {}
   TG.toxtat();
   app.quit();
+});
+
+app.on('before-quit', () => {
+  TrayModul.chiqishniBelgila();
 });
 
 process.on('uncaughtException', (e) => {
