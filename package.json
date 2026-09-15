@@ -1,6 +1,6 @@
 {
   "name": "shodiev-pos",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Shodiev Optom Market - POS tizimi",
   "main": "electron/main.js",
   "author": "Shodiev Optom Market",

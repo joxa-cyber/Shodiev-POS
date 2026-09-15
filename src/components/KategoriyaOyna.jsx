@@ -10,6 +10,8 @@ export default function KategoriyaOyna({ ochiq, yop, filial, toast, yangilandi }
   const [biriktirish, setBiriktirish] = useState(false);
   const [yangiNom, setYangiNom] = useState('');
   const [tahrir, setTahrir] = useState(null);
+  const [belgilangan, setBelgilangan] = useState([]);
+  const [kochirTo, setKochirTo] = useState('');
 
   const yukla = useCallback(() => {
     amal('kategoriya.royxat')
@@ -26,6 +28,8 @@ export default function KategoriyaOyna({ ochiq, yop, filial, toast, yangilandi }
   }, [ochiq, yukla]);
 
   useEffect(() => {
+    setBelgilangan([]);
+    setKochirTo('');
     if (tanlangan === null) return setTovarlar([]);
     amal('kategoriya.tovarlar', { kategoriya_id: tanlangan.id, filial_id: filial })
       .then(setTovarlar)
@@ -51,6 +55,27 @@ export default function KategoriyaOyna({ ochiq, yop, filial, toast, yangilandi }
       await amal('kategoriya.saqla', { id: tahrir.id, nomi: tahrir.nomi.trim() });
       toast.ok('Nomi o‘zgartirildi');
       setTahrir(null);
+      yukla();
+      yangilandi && yangilandi();
+    } catch (e) {
+      toast.xato(e.message);
+    }
+  }
+
+  async function kochir(tovar_idlar, maqsad_id, maqsadNomi) {
+    if (!tovar_idlar.length) return;
+    try {
+      await amal('kategoriya.biriktir', { kategoriya_id: maqsad_id || null, tovar_idlar });
+      toast.ok(
+        `${tovar_idlar.length} ta tovar «${maqsad_id ? maqsadNomi : 'kategoriyasiz'}» ga ko'chirildi`
+      );
+      setBelgilangan([]);
+      setKochirTo('');
+      const yangi = await amal('kategoriya.tovarlar', {
+        kategoriya_id: tanlangan.id,
+        filial_id: filial,
+      });
+      setTovarlar(yangi);
       yukla();
       yangilandi && yangilandi();
     } catch (e) {
@@ -157,14 +182,78 @@ export default function KategoriyaOyna({ ochiq, yop, filial, toast, yangilandi }
               <>
                 <div className="qator" style={{ marginBottom: 10 }}>
                   <b>{tanlangan.nomi}</b>
+                  <span className="xira kichik">{tovarlar.length} ta tovar</span>
                   <button className="btn btn-kichik btn-yashil qator-oxiri" onClick={() => setBiriktirish(true)}>
                     + Tovar biriktirish
                   </button>
                 </div>
+
+                {tovarlar.length > 0 && (
+                  <div
+                    className="karta"
+                    style={{ padding: 10, marginBottom: 10, background: 'var(--fon4)' }}
+                  >
+                    <div className="qator kichik" style={{ marginBottom: 8 }}>
+                      <label className="qator" style={{ gap: 6, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={belgilangan.length === tovarlar.length && tovarlar.length > 0}
+                          onChange={(e) => setBelgilangan(e.target.checked ? tovarlar.map((t) => t.id) : [])}
+                        />
+                        Hammasini belgilash
+                      </label>
+                      {belgilangan.length > 0 && (
+                        <span className="nishon n-yashil qator-oxiri">{belgilangan.length} ta tanlandi</span>
+                      )}
+                    </div>
+                    <div className="qator">
+                      <select
+                        className="inp"
+                        value={kochirTo}
+                        onChange={(e) => setKochirTo(e.target.value)}
+                        disabled={!belgilangan.length}
+                      >
+                        <option value="">— Qaysi kategoriyaga ko'chirilsin? —</option>
+                        {royxat
+                          .filter((k) => k.id !== tanlangan.id)
+                          .map((k) => (
+                            <option key={k.id} value={k.id}>
+                              {k.nomi}
+                            </option>
+                          ))}
+                        <option value="yoq">Kategoriyasiz qoldirish</option>
+                      </select>
+                      <button
+                        className="btn btn-yashil"
+                        disabled={!belgilangan.length || !kochirTo}
+                        onClick={() => {
+                          const maqsad = kochirTo === 'yoq' ? null : Number(kochirTo);
+                          const nomi = royxat.find((k) => k.id === maqsad)?.nomi;
+                          kochir(belgilangan, maqsad, nomi);
+                        }}
+                      >
+                        ➜ Ko'chirish
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <table className="jadval">
                   <tbody>
                     {tovarlar.map((t) => (
                       <tr key={t.id}>
+                        <td style={{ width: 28 }}>
+                          <input
+                            type="checkbox"
+                            checked={belgilangan.includes(t.id)}
+                            onChange={(e) =>
+                              setBelgilangan(
+                                e.target.checked
+                                  ? [...belgilangan, t.id]
+                                  : belgilangan.filter((x) => x !== t.id)
+                              )
+                            }
+                          />
+                        </td>
                         <td>{t.nomi}</td>
                         <td className="ong xira kichik">{miqdorFmt(t.qoldiq)} dona</td>
                         <td className="ong qalin">{pul(t.sotuv_narx)}</td>
@@ -172,12 +261,7 @@ export default function KategoriyaOyna({ ochiq, yop, filial, toast, yangilandi }
                           <button
                             className="btn btn-kichik"
                             title="Kategoriyadan chiqarish"
-                            onClick={async () => {
-                              await amal('kategoriya.biriktir', { kategoriya_id: null, tovar_idlar: [t.id] });
-                              setTovarlar(tovarlar.filter((x) => x.id !== t.id));
-                              yukla();
-                              yangilandi && yangilandi();
-                            }}
+                            onClick={() => kochir([t.id], null)}
                           >
                             ✕
                           </button>

@@ -5,11 +5,30 @@ export default function Kirish({ kirdi }) {
   const [login, setLogin] = useState('');
   const [parol, setParol] = useState('');
   const [xato, setXato] = useState('');
-  const [kutish, setKutish] = useState(false);
+  const [kutish, setKutish] = useState(true);
   const loginRef = useRef();
+  const parolRef = useRef();
 
+  // Yangilanishdan keyin avtomatik kirish, aks holda oxirgi loginni to'ldiramiz
   useEffect(() => {
-    loginRef.current?.focus();
+    amal('auth.avtoKirish')
+      .then((r) => {
+        if (r.user) {
+          kirdi(r.user);
+          return;
+        }
+        setKutish(false);
+        if (r.oxirgiLogin) {
+          setLogin(r.oxirgiLogin);
+          setTimeout(() => parolRef.current?.focus(), 60);
+        } else {
+          setTimeout(() => loginRef.current?.focus(), 60);
+        }
+      })
+      .catch(() => {
+        setKutish(false);
+        setTimeout(() => loginRef.current?.focus(), 60);
+      });
   }, []);
 
   async function yubor(e) {
@@ -50,6 +69,7 @@ export default function Kirish({ kirdi }) {
         <div className="maydon" style={{ textAlign: 'left' }}>
           <label className="yorliq">Parol</label>
           <input
+            ref={parolRef}
             className="inp"
             type="password"
             value={parol}

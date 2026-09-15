@@ -52,7 +52,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || user.rol !== 'rahbar') return;
     const yukla = () => amal('telegram.holat').then(setTgHolat).catch(() => {});
     yukla();
     const t = setInterval(yukla, 15000);
@@ -145,7 +145,7 @@ export default function App() {
             </span>
           )}
           <div className="tepa-ong">
-            {tgHolat && (
+            {tgHolat && user.rol === 'rahbar' && (
               <span
                 className={'nishon ' + (!tgHolat.sozlangan ? 'n-sariq' : tgHolat.kutmoqda > 0 ? 'n-kok' : 'n-yashil')}
                 title={

@@ -177,6 +177,7 @@ const amallar = {
     talab(row, "Login yoki parol noto'g'ri");
     talab(DB.parolTekshir(parol, row.parol_hash), "Login yoki parol noto'g'ri");
     joriy = foydalanuvchiYuklash(row);
+    DB.sozlamaSaqla('oxirgi_login', joriy.login);
     DB.jurnalYoz(joriy.id, 'kirish', joriy.ism);
     return joriy;
   },
@@ -189,6 +190,24 @@ const amallar = {
 
   'auth.joriy'() {
     return joriy;
+  },
+
+  // Yangilanishdan keyin avtomatik kirish (10 daqiqa ichida) + oxirgi loginni eslash
+  'auth.avtoKirish'() {
+    const oxirgiLogin = DB.sozlama('oxirgi_login', '');
+    try {
+      const saqlangan = JSON.parse(DB.sozlama('qayta_kirish', '') || '{}');
+      DB.sozlamaSaqla('qayta_kirish', '');
+      if (saqlangan.id && Date.now() - saqlangan.vaqt < 10 * 60 * 1000) {
+        const row = db().prepare('SELECT * FROM foydalanuvchilar WHERE id = ? AND aktiv = 1').get(saqlangan.id);
+        if (row) {
+          joriy = foydalanuvchiYuklash(row);
+          DB.jurnalYoz(joriy.id, 'kirish', joriy.ism + ' (yangilanishdan keyin)');
+          return { user: joriy, oxirgiLogin };
+        }
+      }
+    } catch {}
+    return { user: null, oxirgiLogin };
   },
 
   'auth.parolOzgartir'({ eski, yangi }) {
@@ -1607,7 +1626,9 @@ const amallar = {
   },
 
   'yangilanish.ornat'() {
-    kirganmi();
+    const u = kirganmi();
+    // Yangilanishdan keyin qayta login qilmasin - seansni eslab qolamiz
+    DB.sozlamaSaqla('qayta_kirish', JSON.stringify({ id: u.id, vaqt: Date.now() }));
     return Yangilanish.ornat();
   },
 
