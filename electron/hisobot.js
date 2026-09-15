@@ -1,5 +1,5 @@
 // Hisobotlar - ham UI, ham Telegram bot shu modulni ishlatadi
-const { baza } = require('./db');
+const { baza, sozlama } = require('./db');
 
 function pul(n) {
   const son = Math.round(Number(n) || 0);
@@ -218,6 +218,31 @@ function hisobotMatn(sarlavha, h) {
   const l = [];
   l.push(`📊 <b>${sarlavha}</b>`);
   l.push(`<i>${h.dan === h.gacha ? sanaChiroyli(h.dan) : sanaChiroyli(h.dan) + ' — ' + sanaChiroyli(h.gacha)}</i>`);
+
+  // Ma'lumotlar tozalangan bo'lsa - buni aytib qo'yamiz
+  const tozalangan = sozlama('tozalangan_sana', '');
+  if (tozalangan && tozalangan.slice(0, 10) >= h.dan) {
+    l.push('');
+    l.push(
+      `ℹ️ <i>Ma'lumotlar ${sanaChiroyli(tozalangan.slice(0, 10))} ${tozalangan.slice(11, 16)} da ` +
+        `tozalangan — undan oldingi savdolar hisobda yo'q.</i>`
+    );
+  }
+
+  // Savdo bo'lmagan bo'lsa - qisqa va tushunarli javob
+  if (!h.chek_soni && !h.kirim_soni && !h.qarz_tolov) {
+    l.push('');
+    l.push('Bu davrda savdo qayd etilmagan.');
+    if (tozalangan) {
+      l.push('');
+      l.push(
+        "<i>Dasturda ma'lumotlar yaqinda tozalangan. Yangi savdolar kiritilishi bilan " +
+          'hisobotlar odatdagidek to\'ldirilib boradi.</i>'
+      );
+    }
+    return l.join('\n');
+  }
+
   l.push('');
   l.push(`🧾 Cheklar: <b>${h.chek_soni} ta</b>`);
   l.push(`💵 Savdo: <b>${pul(h.savdo)} so'm</b>`);
@@ -238,7 +263,10 @@ function hisobotMatn(sarlavha, h) {
     );
   }
   l.push('');
-  l.push(`💰 <b>Kassaga tushdi: ${pul(h.kassa_naqd + h.kassa_karta + h.kassa_terminal)} so'm</b>`);
+  l.push(`💰 <b>Jami tushum: ${pul(h.kassa_naqd + h.kassa_karta + h.kassa_terminal)} so'm</b>`);
+  l.push(`  💵 Kassada (naqd pul): <b>${pul(h.kassa_naqd)} so'm</b>`);
+  const bank = h.kassa_karta + h.kassa_terminal;
+  if (bank > 0) l.push(`  🏦 Bankda (karta + terminal): <b>${pul(bank)} so'm</b>`);
   l.push('');
   l.push(
     `📤 Tovar chiqimi: <b>${fmtMiqdor(h.chiqim_dona)} dona</b>` +

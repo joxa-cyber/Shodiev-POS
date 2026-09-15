@@ -522,6 +522,24 @@ const amallar = {
       db()
         .prepare('INSERT INTO ombor (tovar_id, filial_id, qoldiq) VALUES (?,?,?)')
         .run(tovarId, fid, qoldiq);
+
+      // Bu ham tovar kirimi - rahbar bilib tursin
+      if (DB.sozlama('telegram_kirim_yuborish', '1') === '1') {
+        TG.navbatQosh(
+          [
+            '📥 <b>Yangi tovar qo\'shildi</b>',
+            '',
+            `🏪 ${filialNomi(fid)}`,
+            `👤 Kiritdi: ${joriy.ism}`,
+            '',
+            `• ${maydonlar.nomi} — ${H.fmtMiqdor(qoldiq)} dona` +
+              (tanNarx ? ` × ${H.pul(tanNarx)} = ${H.pul(summa)}` : ''),
+            `   sotuv narxi: ${H.pul(maydonlar.sotuv_narx)}`,
+            '',
+            `<i>Boshlang'ich qoldiq sifatida kiritildi</i>`,
+          ].join('\n')
+        );
+      }
     }
     return tovarId;
   },
@@ -1766,6 +1784,18 @@ const amallar = {
       return soni;
     })();
     DB.jurnalYoz(u.id, 'sotuvlar_tozalandi', `${natija} ta chek`);
+    DB.sozlamaSaqla('tozalangan_sana', H.hozir());
+    TG.navbatQosh(
+      [
+        "🧹 <b>Sotuvlar tozalandi</b>",
+        '',
+        `👤 ${u.ism}`,
+        `🗑 O'chirilgan cheklar: ${natija} ta`,
+        '',
+        "<i>Tovarlar, narxlar va kirimlar joyida qoldi. Ombor qoldig'i kirimlar bo'yicha",
+        'qayta hisoblandi. Bundan keyingi hisobotlar shu paytdan boshlab yuritiladi.</i>',
+      ].join('\n')
+    );
     return { ochirildi: natija };
   },
 
@@ -1790,6 +1820,22 @@ const amallar = {
       }
     })();
     DB.jurnalYoz(u.id, 'hammasi_tozalandi', '');
+    DB.sozlamaSaqla('tozalangan_sana', H.hozir());
+    TG.navbatQosh(
+      [
+        "🧹 <b>Ma'lumotlar tozalandi</b>",
+        '',
+        `👤 ${u.ism}`,
+        `🕐 ${H.sanaChiroyli(H.bugun())} ${H.hozir().slice(11, 16)}`,
+        '',
+        "Tovarlar, kirimlar, sotuvlar, mijozlar va qarzlar — hammasi o'chirildi.",
+        'Xodimlar, filiallar va sozlamalar saqlanib qoldi.',
+        '',
+        "<i>Bundan keyin so'ralgan hisobotlar (bugun, hafta, oy, jami) faqat shu paytdan",
+        "keyingi savdolarni ko'rsatadi. Yangi tovarlar kiritilishi bilan bot odatdagidek",
+        'ishlashda davom etadi.</i>',
+      ].join('\n')
+    );
     return true;
   },
 
