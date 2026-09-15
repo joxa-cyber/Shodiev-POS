@@ -10,6 +10,8 @@ let navbatTimer = null;
 let pollTimer = null;
 let oxirgiUpdateId = 0;
 let yuborilmoqda = false;
+let birinchiSorov = true; // dastur yopiq paytdagi eski buyruqlarga javob bermaymiz
+let conflictOgohlantirildi = false;
 
 /* ============ ASOSIY YORDAMCHILAR ============ */
 
@@ -223,6 +225,21 @@ const MENYU = {
       { text: 'ℹ️ Holat', callback_data: 'holat' },
     ],
   ],
+};
+
+// Pastda doim turadigan tugmalar (yozish shart emas)
+const TUGMALAR = {
+  keyboard: [
+    [{ text: '📊 Bugun' }, { text: '📅 Kecha' }],
+    [{ text: '🗓 Hafta' }, { text: '📆 Oy' }],
+    [{ text: '💰 Kassa' }, { text: '📦 Qoldiq' }],
+    [{ text: '⚠️ Tugayotgan' }, { text: '📝 Qarzdorlar' }],
+    [{ text: '🏆 Top tovarlar' }, { text: '📈 Jami' }],
+    [{ text: 'ℹ️ Holat' }, { text: '🏠 Menyu' }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+  input_field_placeholder: "Bo'limni tanlang yoki tugmani bosing",
 };
 
 const ORTGA = (kalit) => ({
@@ -464,6 +481,19 @@ async function yangilanishlarniOl() {
     );
     const ruxsat = chatlar();
 
+    // Dastur yopiq turganda yozilgan eski buyruqlarga javob bermaymiz
+    if (birinchiSorov) {
+      birinchiSorov = false;
+      if (updates.length) {
+        oxirgiUpdateId = Math.max(...updates.map((u) => u.update_id));
+        const eskiSoni = updates.filter((u) => {
+          const vaqt = (u.message && u.message.date) || 0;
+          return Date.now() / 1000 - vaqt > 600;
+        }).length;
+        if (eskiSoni === updates.length) return; // hammasi eski - o'tkazib yuboramiz
+      }
+    }
+
     for (const u of updates) {
       oxirgiUpdateId = Math.max(oxirgiUpdateId, u.update_id);
 
@@ -517,12 +547,27 @@ async function yangilanishlarniOl() {
 
       const kalit = kalitniTop(msg.text);
       if (!kalit) {
-        await xabarYubor(chatId, 'Tushunmadim. Pastdagi tugmalardan foydalaning 👇', MENYU);
+        await xabarYubor(
+          chatId,
+          'Tushunmadim 🤔\nPastdagi tugmalardan birini bosing yoki /menyu deb yozing.',
+          TUGMALAR
+        );
         continue;
       }
-      await xabarYubor(chatId, javobMatni(kalit), kalit === 'menyu' ? MENYU : ORTGA(kalit));
+      if (kalit === 'menyu') {
+        // menyu bosilganda doimiy tugmalarni ham o'rnatamiz
+        await xabarYubor(chatId, javobMatni('menyu'), TUGMALAR);
+        await xabarYubor(chatId, 'Yoki shu tugmalardan tanlang 👇', MENYU);
+      } else {
+        await xabarYubor(chatId, javobMatni(kalit), ORTGA(kalit));
+      }
     }
   } catch (e) {
+    // 409 = boshqa nusxa ham shu bot bilan ishlayapti
+    if (/conflict|terminated by other/i.test(String(e.message)) && !conflictOgohlantirildi) {
+      conflictOgohlantirildi = true;
+      console.error('Telegram: bot boshqa joyda ham ishlayapti (409). Faqat bitta nusxa ishlashi kerak.');
+    }
     // internet yo'q yoki token xato - jim o'tamiz, keyingi urinishda qayta uriniladi
   }
 }
@@ -665,6 +710,7 @@ module.exports = {
   sozlanganmi,
   apiChaqir,
   MENYU,
+  TUGMALAR,
   javobMatni, // sinov uchun
   kalitniTop,
 };
