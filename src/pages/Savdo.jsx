@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { amal, pul, miqdorFmt, bugun, sanaQoshish, sanaChiroyli } from '../api.js';
-import { Tasdiq } from '../components/Ui.jsx';
+import QaytarishOyna from '../components/QaytarishOyna.jsx';
 
 // Bugungi (yoki tanlangan kundagi) savdo: cheklar, tarkibi, qayta chop etish
 export default function Savdo({ user, filial, toast }) {
   const [sana, setSana] = useState(bugun());
   const [d, setD] = useState(null);
   const [ochiq, setOchiq] = useState(null); // ochilgan chek id
-  const [bekor, setBekor] = useState(null);
+  const [qaytarish, setQaytarish] = useState(null);
   const [korinish, setKorinish] = useState('cheklar');
   const rahbarmi = user.rol === 'rahbar';
 
@@ -95,10 +95,19 @@ export default function Savdo({ user, filial, toast }) {
                   <tr style={{ cursor: 'pointer' }} onClick={() => setOchiq(ochiq === c.id ? null : c.id)}>
                     <td className="xira markaz">{ochiq === c.id ? '▾' : '▸'}</td>
                     <td className="kichik">{c.sana.slice(11, 19)}</td>
-                    <td className="kichik xira">{c.raqam}</td>
+                    <td className="kichik xira">
+                      {c.raqam}
+                      {c.tur === 'qaytarish' && (
+                        <div>
+                          <span className="nishon n-qizil">↩️ qaytarish</span>
+                        </div>
+                      )}
+                    </td>
                     <td className="kichik">{c.hodim}</td>
                     <td className="kichik">{c.mijoz || '—'}</td>
-                    <td className="ong qalin">{pul(c.jami)}</td>
+                    <td className="ong qalin" style={c.jami < 0 ? { color: 'var(--qizil)' } : undefined}>
+                      {pul(c.jami)}
+                    </td>
                     <td className="kichik">
                       {c.yaxlitlash ? (
                         <span
@@ -117,11 +126,16 @@ export default function Savdo({ user, filial, toast }) {
                     </td>
                     <td className="ong" onClick={(e) => e.stopPropagation()}>
                       <button className="btn btn-kichik" onClick={() => qaytaChop(c.id, c.raqam)} title="Chekni qayta chiqarish">
-                        🖨 Qayta chop
+                        🖨
                       </button>
-                      {rahbarmi && (
-                        <button className="btn btn-kichik" style={{ marginLeft: 6 }} onClick={() => setBekor(c)}>
-                          ✕
+                      {c.tur !== 'qaytarish' && (
+                        <button
+                          className="btn btn-kichik"
+                          style={{ marginLeft: 6 }}
+                          onClick={() => setQaytarish(c.id)}
+                          title="Tovarni qaytarish"
+                        >
+                          ↩️ Qaytarish
                         </button>
                       )}
                     </td>
@@ -194,22 +208,16 @@ export default function Savdo({ user, filial, toast }) {
         </div>
       )}
 
-      <Tasdiq
-        ochiq={!!bekor}
-        yop={() => setBekor(null)}
-        sarlavha="Chekni bekor qilish"
-        matn={`№${bekor?.raqam} chek (${pul(bekor?.jami || 0)} so'm) bekor qilinadi. Tovarlar omborga qaytadi, qarz bo'lsa u ham bekor bo'ladi.`}
-        tugma="Ha, bekor qilish"
-        tasdiqla={async () => {
-          try {
-            await amal('sotuv.bekor', { id: bekor.id, sabab: 'Rahbar bekor qildi' });
-            toast.ok('Chek bekor qilindi');
-            yukla();
-          } catch (e) {
-            toast.xato(e.message);
-          }
+      <QaytarishOyna
+        sotuv_id={qaytarish}
+        yop={() => setQaytarish(null)}
+        toast={toast}
+        tayyor={() => {
+          setQaytarish(null);
+          yukla();
         }}
       />
+
     </div>
   );
 }

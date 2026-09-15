@@ -55,6 +55,10 @@ function migratsiya() {
     ['telegram_navbat', 'chat_id', "TEXT DEFAULT ''"], // xabar qaysi chatga ketadi
     // to'lov farqi: manfiy = qo'shib yuborildi, musbat = qaytim olinmadi
     ['sotuvlar', 'yaxlitlash', 'REAL NOT NULL DEFAULT 0'],
+    // hujjat turi: 'sotuv' yoki 'qaytarish'
+    ['sotuvlar', 'tur', "TEXT NOT NULL DEFAULT 'sotuv'"],
+    // qaytarish qaysi chekka tegishli
+    ['sotuvlar', 'asos_id', 'INTEGER'],
   ];
   // Eski yagona shtrix-kodlarni yangi jadvalga ko'chiramiz (bir marta)
   try {

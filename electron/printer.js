@@ -168,6 +168,91 @@ async function html_chop(html, nusxa = 1) {
   }
 }
 
+
+// Qaytarish cheki: nima qaytgani va chekda nima qolgani
+function qaytarishHtml(q, qatorlar, qosh = {}) {
+  const eni = Number(sozlama('chek_eni', '80')) === 58 ? 48 : 72;
+  const logo = sozlama('chek_logo', '') || STANDART_LOGO;
+  const nomi = sozlama('dokon_nomi', '');
+  const manzil = sozlama('dokon_manzil', '');
+  const telefon = sozlama('dokon_telefon', '');
+
+  const sana = q.sana || '';
+  const kun = H.sanaChiroyli(sana.slice(0, 10));
+  const soat = sana.slice(11, 19);
+  const summa = Math.abs(q.jami);
+  const asos = qosh.asos || {};
+
+  const qatorHtml = qatorlar
+    .map(
+      (x) => `<tr class="mahsulot"><td colspan="2" class="nom">${esc(x.nomi)}</td></tr>
+      <tr class="mahsulot">
+        <td class="hisob">${H.fmtMiqdor(Math.abs(x.miqdor))} x ${H.pul(x.narx)}</td>
+        <td class="summa">${H.pul(Math.abs(x.summa))}</td>
+      </tr>`
+    )
+    .join('');
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  @page { size: ${eni}mm auto; margin: 0; }
+  * { box-sizing: border-box; }
+  body { width: ${eni}mm; margin: 0; padding: 2mm 1mm 4mm;
+    font-family: "Segoe UI", Arial, sans-serif; font-size: 11.5px; line-height: 1.35; color: #000; }
+  .markaz { text-align: center; }
+  .logo { max-width: 62mm; max-height: 22mm; display: block; margin: 0 auto 2mm; filter: grayscale(1) contrast(1.6); }
+  .dokon { font-size: 17px; font-weight: 800; text-transform: uppercase; }
+  .sarlavha { font-size: 15px; font-weight: 800; letter-spacing: 1px; margin: 1mm 0; }
+  .chiziq { border-top: 1px dashed #000; margin: 2mm 0; }
+  .qalin-chiziq { border-top: 2px solid #000; margin: 2mm 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td { vertical-align: top; padding: 0; }
+  .nom { font-weight: 700; padding-top: 1.2mm; }
+  .hisob { padding-left: 2mm; }
+  .summa { text-align: right; font-weight: 700; white-space: nowrap; }
+  .jami-qator td { font-size: 15px; font-weight: 800; padding: 1mm 0; }
+  .tolov td { padding: 0.3mm 0; }
+  .past { font-size: 11px; margin-top: 1mm; }
+  .raqam { font-size: 10.5px; }
+</style></head>
+<body>
+  <div class="markaz">
+    ${logo ? `<img class="logo" src="${logo}">` : `<div class="dokon">${esc(nomi)}</div>`}
+    <div class="sarlavha">QAYTARISH CHEKI</div>
+  </div>
+  <div class="chiziq"></div>
+  <table class="raqam">
+    <tr><td>${kun}</td><td class="summa" style="font-weight:400">${soat}</td></tr>
+    <tr><td>Qaytarish №${esc(q.raqam)}</td><td class="summa" style="font-weight:400">${esc(qosh.hodim || '')}</td></tr>
+    ${asos.raqam ? `<tr><td colspan="2">Asos: chek №${esc(asos.raqam)}</td></tr>` : ''}
+    ${qosh.mijoz ? `<tr><td colspan="2">Mijoz: ${esc(qosh.mijoz)}</td></tr>` : ''}
+  </table>
+  <div class="chiziq"></div>
+  <div style="font-weight:700">QAYTARILDI:</div>
+  <table>${qatorHtml}</table>
+  <div class="qalin-chiziq"></div>
+  <table>
+    <tr class="jami-qator"><td>QAYTARILDI</td><td class="summa">${H.pul(summa)}</td></tr>
+    <tr class="tolov"><td>${esc(qosh.usul || '')}</td><td class="summa" style="font-weight:400">${H.pul(summa)}</td></tr>
+  </table>
+  <div class="chiziq"></div>
+  <table class="raqam">
+    ${asos.jami !== undefined ? `<tr><td>Chek summasi edi</td><td class="summa" style="font-weight:400">${H.pul(asos.jami)}</td></tr>` : ''}
+    ${qosh.qolgan !== undefined ? `<tr><td><b>Chekda qoldi</b></td><td class="summa">${H.pul(Math.max(0, qosh.qolgan))}</td></tr>` : ''}
+  </table>
+  <div class="chiziq"></div>
+  <div class="markaz past">
+    ${esc(manzil)}<br>
+    ${esc(telefon)}
+  </div>
+</body></html>`;
+}
+
+async function qaytarishChop(q, qatorlar, qosh = {}) {
+  return html_chop(qaytarishHtml(q, qatorlar, qosh), 1);
+}
+
 async function chekChop(sotuv, qatorlar, qosh = {}) {
   return html_chop(chekHtml(sotuv, qatorlar, qosh), 1);
 }
@@ -182,4 +267,4 @@ async function printerlarRoyxati() {
   }
 }
 
-module.exports = { chekChop, chekHtml, html_chop, printerlarRoyxati };
+module.exports = { chekChop, chekHtml, qaytarishChop, qaytarishHtml, html_chop, printerlarRoyxati };

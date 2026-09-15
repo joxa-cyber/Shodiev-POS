@@ -973,6 +973,211 @@ const amallar = {
     return { id: natija.sotuv.id, raqam: natija.sotuv.raqam, jami, chopXato };
   },
 
+  // Chek bo'yicha qaytarish holati: nimadan nechtasi sotilgan va qanchasi qaytgan
+  'sotuv.qaytarishHolati'({ sotuv_id }) {
+    kirganmi();
+    const sotuv = db()
+      .prepare(
+        `SELECT s.*, m.ism AS mijoz, f.ism AS hodim FROM sotuvlar s
+         LEFT JOIN mijozlar m ON m.id = s.mijoz_id
+         LEFT JOIN foydalanuvchilar f ON f.id = s.foydalanuvchi_id
+         WHERE s.id = ?`
+      )
+      .get(sotuv_id);
+    talab(sotuv, 'Chek topilmadi');
+    talab(sotuv.tur !== 'qaytarish', 'Bu qaytarish cheki - undan qaytarib bo\'lmaydi');
+
+    const qatorlar = db()
+      .prepare('SELECT * FROM sotuv_qatorlari WHERE sotuv_id = ?')
+      .all(sotuv_id)
+      .map((q) => {
+        // shu chekdan shu tovardan qancha qaytarilgan
+        const qaytgan = db()
+          .prepare(
+            `SELECT COALESCE(SUM(-sq.miqdor),0) AS n
+             FROM sotuv_qatorlari sq JOIN sotuvlar s2 ON s2.id = sq.sotuv_id
+             WHERE s2.asos_id = ? AND s2.tur = 'qaytarish' AND sq.tovar_id IS ?`
+          )
+          .get(sotuv_id, q.tovar_id).n;
+        return { ...q, qaytgan, qoldiq: Math.round((q.miqdor - qaytgan) * 100) / 100 };
+      });
+
+    const qaytarishlar = db()
+      .prepare(
+        `SELECT s.id, s.raqam, s.sana, s.jami, f.ism AS hodim FROM sotuvlar s
+         LEFT JOIN foydalanuvchilar f ON f.id = s.foydalanuvchi_id
+         WHERE s.asos_id = ? AND s.tur = 'qaytarish' ORDER BY s.id`
+      )
+      .all(sotuv_id);
+
+    const u = joriy;
+    const bugungimi = sotuv.sana.slice(0, 10) === H.bugun();
+    return {
+      sotuv,
+      qatorlar,
+      qaytarishlar,
+      qaytarilgan_summa: qaytarishlar.reduce((s2, x) => s2 + -x.jami, 0),
+      // xodim faqat bugungi chekni qaytara oladi
+      ruxsat: u.rol === 'rahbar' || bugungimi,
+      sabab: u.rol !== 'rahbar' && !bugungimi ? 'Eski cheklarni faqat rahbar qaytara oladi' : '',
+    };
+  },
+
+  /* Tovarni qaytarish. Eski chek o'chirilmaydi - ustiga qaytarish hujjati yoziladi.
+     Hisobotlarda, kassada va omborda hammasi avtomatik ayiriladi. */
+  'sotuv.qaytarish'(data) {
+    const u = ruxsat('sotuv');
+    const holat = amallar['sotuv.qaytarishHolati']({ sotuv_id: data.sotuv_id });
+    talab(holat.ruxsat, holat.sabab || "Qaytarishga ruxsat yo'q");
+
+    const asos = holat.sotuv;
+    const fid = asos.filial_id;
+    const soralgan = (data.qatorlar || []).filter((q) => Number(q.miqdor) > 0);
+    talab(soralgan.length, 'Qaytariladigan tovarni tanlang');
+
+    // Har bir qator tekshiriladi: chekda borligidan ko'p qaytarib bo'lmaydi
+    const tayyor = soralgan.map((q) => {
+      const asl = holat.qatorlar.find((x) => x.tovar_id === q.tovar_id);
+      talab(asl, 'Bu tovar chekda yo\'q');
+      const miqdor = Number(q.miqdor);
+      talab(
+        miqdor <= asl.qoldiq + 0.001,
+        `${asl.nomi}: chekda ${H.fmtMiqdor(asl.qoldiq)} dona qaytarish mumkin, ${H.fmtMiqdor(miqdor)} so'ralmoqda`
+      );
+      return {
+        tovar_id: asl.tovar_id,
+        nomi: asl.nomi,
+        miqdor,
+        narx: asl.narx,
+        tan_narx: asl.tan_narx,
+        summa: Math.round(miqdor * asl.narx),
+      };
+    });
+
+    const summa = tayyor.reduce((s2, q) => s2 + q.summa, 0);
+    const tanSumma = tayyor.reduce((s2, q) => s2 + q.tan_narx * q.miqdor, 0);
+    const usul = data.usul || 'naqd';
+    talab(summa > 0, "Qaytariladigan summa noto'g'ri");
+
+    const natija = db().transaction(() => {
+      const kun = H.bugun();
+      const soni =
+        db()
+          .prepare("SELECT COUNT(*) AS n FROM sotuvlar WHERE substr(sana,1,10) = ? AND filial_id = ?")
+          .get(kun, fid).n + 1;
+      const raqam = `${kun.replace(/-/g, '')}-${String(soni).padStart(4, '0')}Q`;
+
+      const info = db()
+        .prepare(
+          `INSERT INTO sotuvlar
+             (raqam, tur, asos_id, filial_id, foydalanuvchi_id, mijoz_id, jami, tan_jami,
+              naqd, karta, terminal, qarz, qarz_qoldiq, izoh)
+           VALUES (@raqam, 'qaytarish', @asos_id, @filial_id, @foydalanuvchi_id, @mijoz_id,
+                   @jami, @tan_jami, @naqd, @karta, @terminal, @qarz, 0, @izoh)`
+        )
+        .run({
+          raqam,
+          asos_id: asos.id,
+          filial_id: fid,
+          foydalanuvchi_id: u.id,
+          mijoz_id: asos.mijoz_id || null,
+          jami: -summa,
+          tan_jami: -tanSumma,
+          naqd: usul === 'naqd' ? -summa : 0,
+          karta: usul === 'karta' ? -summa : 0,
+          terminal: usul === 'terminal' ? -summa : 0,
+          qarz: usul === 'qarz' ? -summa : 0,
+          izoh: data.izoh || '',
+        });
+      const qId = info.lastInsertRowid;
+
+      const qQator = db().prepare(
+        'INSERT INTO sotuv_qatorlari (sotuv_id, tovar_id, nomi, miqdor, narx, tan_narx, summa) VALUES (?,?,?,?,?,?,?)'
+      );
+      const qOmbor = db().prepare(
+        `INSERT INTO ombor (tovar_id, filial_id, qoldiq) VALUES (?,?,?)
+         ON CONFLICT(tovar_id, filial_id) DO UPDATE SET qoldiq = qoldiq + excluded.qoldiq`
+      );
+      for (const q of tayyor) {
+        // manfiy miqdor - hisobotlarda o'zi ayiriladi
+        qQator.run(qId, q.tovar_id, q.nomi, -q.miqdor, q.narx, q.tan_narx, -q.summa);
+        qOmbor.run(q.tovar_id, fid, q.miqdor); // tovar omborga qaytdi
+      }
+
+      // Qarzdan yechish: asl chekdagi qarz kamayadi
+      if (usul === 'qarz' && asos.mijoz_id) {
+        const kamaytir = Math.min(summa, asos.qarz_qoldiq || 0);
+        if (kamaytir > 0) {
+          db().prepare('UPDATE sotuvlar SET qarz_qoldiq = qarz_qoldiq - ? WHERE id = ?').run(kamaytir, asos.id);
+        }
+        const qolgan = summa - kamaytir;
+        if (qolgan > 0) {
+          db().prepare('UPDATE mijozlar SET avans = avans + ? WHERE id = ?').run(qolgan, asos.mijoz_id);
+        }
+        mijozQarziQayta(asos.mijoz_id);
+      }
+
+      return db().prepare('SELECT * FROM sotuvlar WHERE id = ?').get(qId);
+    })();
+
+    // Telegram
+    const usulNomi = { naqd: 'Naqd qaytarildi', karta: 'Kartaga qaytarildi', terminal: 'Terminalga qaytarildi', qarz: 'Qarzdan yechildi' };
+    TG.navbatQosh(
+      [
+        '↩️ <b>Tovar qaytarildi</b>',
+        '',
+        `🏪 ${filialNomi(fid)}`,
+        `👤 ${u.ism}`,
+        asos.mijoz ? `🙍 Mijoz: ${asos.mijoz}` : '',
+        '',
+        '<b>Qaytgan tovarlar:</b>',
+        ...tayyor.map((q) => `• ${q.nomi} — ${H.fmtMiqdor(q.miqdor)} dona · ${H.pul(q.summa)}`),
+        '',
+        `💸 <b>Qaytarilgan summa: ${H.pul(summa)} so'm</b>`,
+        `💵 ${usulNomi[usul] || usul}`,
+        data.izoh ? `📝 ${data.izoh}` : '',
+        '',
+        `<i>Asos: chek №${asos.raqam} (${H.pul(asos.jami)} so'm)</i>`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+
+    DB.jurnalYoz(u.id, 'qaytarish', `chek=${asos.raqam} summa=${summa} usul=${usul}`);
+
+    // Chek chop etish
+    if (data.chopEt !== false && DB.sozlama('avto_chop', '1') === '1') {
+      Printer.qaytarishChop(natija, tayyor, {
+        asos,
+        hodim: u.ism,
+        mijoz: asos.mijoz,
+        usul: usulNomi[usul] || usul,
+        qolgan: asos.jami - holat.qaytarilgan_summa - summa,
+      }).catch((e) => console.error('chop xato:', e.message));
+    }
+
+    return { id: natija.id, raqam: natija.raqam, summa };
+  },
+
+  'sotuv.qaytarishQaytaChop'({ id }) {
+    kirganmi();
+    const q = db().prepare('SELECT * FROM sotuvlar WHERE id = ? AND tur = ?').get(id, 'qaytarish');
+    talab(q, 'Qaytarish topilmadi');
+    const asos = db().prepare('SELECT * FROM sotuvlar WHERE id = ?').get(q.asos_id);
+    const qatorlar = db()
+      .prepare('SELECT * FROM sotuv_qatorlari WHERE sotuv_id = ?')
+      .all(id)
+      .map((x) => ({ ...x, miqdor: -x.miqdor, summa: -x.summa }));
+    const hodim = db().prepare('SELECT ism FROM foydalanuvchilar WHERE id = ?').get(q.foydalanuvchi_id);
+    const usul = q.naqd < 0 ? 'Naqd qaytarildi' : q.karta < 0 ? 'Kartaga qaytarildi' : q.terminal < 0 ? 'Terminalga qaytarildi' : 'Qarzdan yechildi';
+    return Printer.qaytarishChop(q, qatorlar, {
+      asos,
+      hodim: hodim ? hodim.ism : '',
+      usul,
+      qolgan: asos ? asos.jami : 0,
+    });
+  },
+
   'sotuv.qaytaChop'({ id }) {
     const u = kirganmi();
     const sotuv = db().prepare('SELECT * FROM sotuvlar WHERE id = ?').get(id);
@@ -1096,40 +1301,6 @@ const amallar = {
       .get(id);
     const qatorlar = db().prepare('SELECT * FROM sotuv_qatorlari WHERE sotuv_id = ?').all(id);
     return { sotuv, qatorlar };
-  },
-
-  // Faqat rahbar: xato chekni bekor qilish (tovar omborga qaytadi)
-  'sotuv.bekor'({ id, sabab = '' }) {
-    const u = rahbar();
-    const sotuv = db().prepare('SELECT * FROM sotuvlar WHERE id = ?').get(id);
-    talab(sotuv, 'Chek topilmadi');
-    db().transaction(() => {
-      const qatorlar = db().prepare('SELECT * FROM sotuv_qatorlari WHERE sotuv_id = ?').all(id);
-      const qOmbor = db().prepare(
-        `INSERT INTO ombor (tovar_id, filial_id, qoldiq) VALUES (?,?,?)
-         ON CONFLICT(tovar_id, filial_id) DO UPDATE SET qoldiq = qoldiq + excluded.qoldiq`
-      );
-      for (const q of qatorlar) if (q.tovar_id) qOmbor.run(q.tovar_id, sotuv.filial_id, q.miqdor);
-      if (sotuv.mijoz_id) {
-        // bu chekka yozilgan to'lovlar bekor bo'ladi - ular mijozning avansiga qaytadi
-        const qaytgan =
-          db().prepare('SELECT COALESCE(SUM(summa),0) AS s FROM qarz_taqsim WHERE sotuv_id = ?').get(id).s +
-          (sotuv.avans_ishlatildi || 0);
-        if (qaytgan > 0) {
-          db().prepare('UPDATE mijozlar SET avans = avans + ? WHERE id = ?').run(qaytgan, sotuv.mijoz_id);
-        }
-        db().prepare('DELETE FROM qarz_taqsim WHERE sotuv_id = ?').run(id);
-      }
-      db().prepare('DELETE FROM sotuvlar WHERE id = ?').run(id);
-      if (sotuv.mijoz_id) mijozQarziQayta(sotuv.mijoz_id);
-    })();
-    DB.jurnalYoz(u.id, 'sotuv_bekor', `chek=${sotuv.raqam} summa=${sotuv.jami} sabab=${sabab}`);
-    TG.navbatQosh(
-      `❌ <b>Chek bekor qilindi</b>\n\nChek №${sotuv.raqam}\nSumma: ${H.pul(sotuv.jami)} so'm\nBekor qildi: ${u.ism}${
-        sabab ? '\nSabab: ' + sabab : ''
-      }`
-    );
-    return true;
   },
 
   // ---------- KIRIM ----------

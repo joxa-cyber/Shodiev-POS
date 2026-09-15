@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { amal, pul, miqdorFmt, bugun, sanaQoshish, oyBoshi, sanaChiroyli, vaqtChiroyli } from '../api.js';
-import { Modal, Tasdiq } from '../components/Ui.jsx';
+import { Modal } from '../components/Ui.jsx';
+import QaytarishOyna from '../components/QaytarishOyna.jsx';
 import TovarTahlil from './TovarTahlil.jsx';
 
 
@@ -20,7 +21,7 @@ export default function Hisobot({ user, filial, toast }) {
   const [tab, setTab] = useState('umumiy');
   const [sotuvlar, setSotuvlar] = useState([]);
   const [korish, setKorish] = useState(null);
-  const [bekor, setBekor] = useState(null);
+  const [qaytarish, setQaytarish] = useState(null);
   const [qoldiq, setQoldiq] = useState([]);
   const [narxTarix, setNarxTarix] = useState([]);
   const [jurnal, setJurnal] = useState([]);
@@ -65,16 +66,6 @@ export default function Hisobot({ user, filial, toast }) {
     } else if (tur === 'jami') {
       setDan('2000-01-01');
       setGacha(bugun());
-    }
-  }
-
-  async function chekniBekorQil(s) {
-    try {
-      await amal('sotuv.bekor', { id: s.id, sabab: 'Rahbar tomonidan bekor qilindi' });
-      toast.ok('Chek bekor qilindi, tovar omborga qaytdi');
-      yukla();
-    } catch (e) {
-      toast.xato(e.message);
     }
   }
 
@@ -201,9 +192,14 @@ export default function Hisobot({ user, filial, toast }) {
                         <button className="btn btn-kichik" style={{ marginLeft: 6 }} onClick={() => qaytaChop(s.id)}>
                           🖨
                         </button>
-                        {rahbarmi && (
-                          <button className="btn btn-kichik" style={{ marginLeft: 6 }} onClick={() => setBekor(s)}>
-                            ✕
+                        {s.tur !== 'qaytarish' && (
+                          <button
+                            className="btn btn-kichik"
+                            style={{ marginLeft: 6 }}
+                            onClick={() => setQaytarish(s.id)}
+                            title="Tovarni qaytarish"
+                          >
+                            ↩️
                           </button>
                         )}
                       </td>
@@ -535,14 +531,16 @@ export default function Hisobot({ user, filial, toast }) {
         )}
       </Modal>
 
-      <Tasdiq
-        ochiq={!!bekor}
-        yop={() => setBekor(null)}
-        sarlavha="Chekni bekor qilish"
-        matn={`№${bekor?.raqam} chek (${pul(bekor?.jami || 0)} so'm) bekor qilinadi. Tovarlar omborga qaytadi. Davom etasizmi?`}
-        tugma="Ha, bekor qilish"
-        tasdiqla={() => chekniBekorQil(bekor)}
+      <QaytarishOyna
+        sotuv_id={qaytarish}
+        yop={() => setQaytarish(null)}
+        toast={toast}
+        tayyor={() => {
+          setQaytarish(null);
+          yukla();
+        }}
       />
+
     </div>
   );
 }

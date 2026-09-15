@@ -43,7 +43,9 @@ function oraliq(dan, gacha, filial_id = null) {
 
   const savdo = db
     .prepare(
-      `SELECT COUNT(*) AS chek_soni,
+      `SELECT SUM(CASE WHEN tur = 'qaytarish' THEN 0 ELSE 1 END) AS chek_soni,
+              COALESCE(SUM(CASE WHEN tur = 'qaytarish' THEN 1 ELSE 0 END),0) AS qaytarish_soni,
+              COALESCE(SUM(CASE WHEN tur = 'qaytarish' THEN -jami ELSE 0 END),0) AS qaytarish_summa,
               COALESCE(SUM(jami),0) AS savdo,
               COALESCE(SUM(jami - tan_jami),0) AS foyda,
               COALESCE(SUM(naqd),0) AS naqd,
@@ -246,6 +248,9 @@ function hisobotMatn(sarlavha, h) {
   l.push('');
   l.push(`🧾 Cheklar: <b>${h.chek_soni} ta</b>`);
   l.push(`💵 Savdo: <b>${pul(h.savdo)} so'm</b>`);
+  if (h.qaytarish_soni > 0) {
+    l.push(`↩️ Qaytarilgan: <b>${pul(h.qaytarish_summa)} so'm</b> (${h.qaytarish_soni} ta) — savdodan ayirilgan`);
+  }
   l.push(`📈 Foyda: <b>${pul(h.foyda)} so'm</b>`);
   l.push('');
   l.push('<b>To\'lovlar:</b>');
