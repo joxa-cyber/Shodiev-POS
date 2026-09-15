@@ -634,17 +634,24 @@ async function botniSozla(majburiy = false) {
 
 /* ============ KUNLIK AVTOMATIK HISOBOT ============ */
 
-let oxirgiKunlikHisobot = '';
-function kunlikHisobotTekshir() {
-  if (sozlama('telegram_kunlik_hisobot', '1') !== '1') return;
-  const vaqt = sozlama('telegram_hisobot_vaqti', '21:00');
-  const d = new Date();
-  const hozir = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  const kun = H.bugun();
-  if (hozir === vaqt && oxirgiKunlikHisobot !== kun) {
-    oxirgiKunlikHisobot = kun;
-    const h = H.kunlik(kun);
-    const l = [H.hisobotMatn('Kunlik yakuniy hisobot', h)];
+// Bitta kunning yakuniy hisobotini tayyorlaydi
+function kunlikHisobotMatni(kun, kechikkanmi) {
+  const h = H.kunlik(kun);
+  const sarlavha = kechikkanmi
+    ? `Kunlik hisobot (${H.sanaChiroyli(kun)}) — kechikib yuborildi`
+    : 'Kunlik yakuniy hisobot';
+  const l = [H.hisobotMatn(sarlavha, h)];
+
+  if (kechikkanmi) {
+    l.push('');
+    l.push(
+      "<i>Bu hisobot o'z vaqtida yuborilmagan (kompyuter o'chiq yoki internet yo'q edi). " +
+        'Hozir yuborilmoqda.</i>'
+    );
+  }
+
+  // Tugayotgan tovarlar va qarzdorlar - faqat bugungi hisobotda
+  if (!kechikkanmi) {
     const kam = H.qoldiqlar(filialId(), true);
     if (kam.length) {
       l.push('', `⚠️ <b>Tugayotgan tovarlar: ${kam.length} ta</b>`);
@@ -655,7 +662,50 @@ function kunlikHisobotTekshir() {
       const jami = qarzdor.reduce((s, r) => s + r.qarz, 0);
       l.push('', `📝 Qarzdorlar: <b>${H.pul(jami)} so'm</b> (${qarzdor.length} mijoz)`);
     }
-    navbatQosh(l.join('\n'));
+  }
+  return l.join('\n');
+}
+
+// O'sha kunda umuman harakat bo'lganmi (savdo, kirim, qarz to'lovi)
+function kundaHarakatBormi(kun) {
+  const h = H.kunlik(kun);
+  return h.chek_soni > 0 || h.kirim_soni > 0 || h.qarz_tolov > 0;
+}
+
+/* Kunlik hisobotni yuborish.
+   Kompyuter o'chiq bo'lgan yoki internet yo'q bo'lgan kunlar ham o'tkazib yuborilmaydi:
+   dastur yonganda yuborilmagan kunlarni topib, kechikkan bo'lsa ham yuboradi. */
+function kunlikHisobotTekshir() {
+  if (sozlama('telegram_kunlik_hisobot', '1') !== '1') return;
+  if (!sozlanganmi()) return;
+
+  const vaqt = sozlama('telegram_hisobot_vaqti', '21:00');
+  const d = new Date();
+  const hozir = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const bugun = H.bugun();
+
+  let oxirgi = sozlama('oxirgi_kunlik_hisobot', '');
+  if (!oxirgi) {
+    // birinchi ishga tushish - tarixni qaytadan yubormaymiz
+    oxirgi = H.sanaQoshish(bugun, -1);
+    sozlamaSaqla('oxirgi_kunlik_hisobot', oxirgi);
+  }
+
+  // Ko'pi bilan 5 kun orqaga qaraymiz (uzoq ta'tildan keyin xabar to'plab ketmasin)
+  const chegara = H.sanaQoshish(bugun, -5);
+  if (oxirgi < chegara) oxirgi = chegara;
+
+  let kun = H.sanaQoshish(oxirgi, 1);
+  while (kun <= bugun) {
+    const bugungimi = kun === bugun;
+    // Bugungi hisobot faqat belgilangan vaqtdan keyin yuboriladi
+    if (bugungimi && hozir < vaqt) break;
+
+    if (kundaHarakatBormi(kun)) {
+      navbatQosh(kunlikHisobotMatni(kun, !bugungimi));
+    }
+    sozlamaSaqla('oxirgi_kunlik_hisobot', kun);
+    kun = H.sanaQoshish(kun, 1);
   }
 }
 
@@ -664,6 +714,14 @@ function kunlikHisobotTekshir() {
 function ishgaTushir() {
   if (navbatTimer) return;
   botniSozla().catch(() => {});
+  // dastur yonganda yuborilmagan kunlik hisobotlarni tekshiramiz
+  setTimeout(() => {
+    try {
+      kunlikHisobotTekshir();
+    } catch (e) {
+      console.error('kunlik hisobot:', e.message);
+    }
+  }, 12000);
   navbatTimer = setInterval(() => {
     navbatniYubor();
     kunlikHisobotTekshir();
@@ -739,6 +797,7 @@ module.exports = {
   botniSozla,
   ishgaTushir,
   toxtat,
+  kunlikHisobotTekshir,
   sinov,
   sozlanganmi,
   apiChaqir,
