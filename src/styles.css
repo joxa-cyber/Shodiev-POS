@@ -47,8 +47,17 @@ input, textarea { user-select: text; }
 
 .yon {
   width: 92px; background: var(--fon2); border-right: 1px solid var(--chegara);
-  display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; padding: 12px 0 0; gap: 4px;
+  flex-shrink: 0; overflow: hidden;
 }
+
+/* Menyu ro'yxati - joy yetmasa o'zi aylanadi, "Chiqish" esa doim ko'rinib turadi */
+.yon-royxat {
+  flex: 1; min-height: 0; width: 100%; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding-bottom: 4px;
+}
+.yon-royxat::-webkit-scrollbar { width: 4px; }
+.yon-royxat::-webkit-scrollbar-thumb { background: #d6dde8; }
 .yon-logo {
   width: 54px; height: 54px; border-radius: 15px; margin-bottom: 12px;
   background: linear-gradient(135deg, #16b573, #0c8552);
@@ -63,7 +72,10 @@ input, textarea { user-select: text; }
 .yon-btn svg { width: 22px; height: 22px; }
 .yon-btn:hover { background: var(--fon3); color: var(--matn); }
 .yon-btn.faol { background: var(--yashil); color: #fff; box-shadow: 0 3px 10px rgba(15, 158, 99, .25); }
-.yon-past { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
+.yon-past {
+  flex-shrink: 0; width: 100%; display: grid; gap: 6px; justify-items: center;
+  padding: 6px 0 10px; border-top: 1px solid var(--chegara2); background: var(--fon2);
+}
 
 .asosiy { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
@@ -294,3 +306,54 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--yashil);
   display: grid; place-items: center;
 }
 .yon-btn.faol .yon-belgi { background: #fff; color: var(--yashil); }
+
+
+/* ============ KICHIK EKRANLARGA MOSLASHISH ============ */
+
+/* Past ekran (1366x768 va shunga o'xshash) - menyu ixchamlashadi */
+@media (max-height: 820px) {
+  .yon { width: 84px; padding-top: 8px; }
+  .yon-logo { width: 44px; height: 44px; font-size: 20px; border-radius: 12px; margin-bottom: 8px; }
+  .yon-btn { width: 74px; padding: 6px 4px; font-size: 10px; gap: 2px; }
+  .yon-btn svg { width: 19px; height: 19px; }
+  .yon-belgi { top: 2px; right: 8px; min-width: 16px; height: 16px; font-size: 10px; }
+  .tepa { height: 50px; padding: 0 14px; gap: 10px; }
+  .tepa h1 { font-size: 16px; }
+  .sahifa { padding: 14px; }
+  .stat { padding: 12px; }
+  .stat-qiymat { font-size: 22px; }
+  .jami-summa { font-size: 26px; }
+  .btn-katta { padding: 11px 18px; font-size: 16px; }
+  .savat-tepa, .savat-past { padding: 10px 14px; }
+  .qidiruv { padding: 11px 14px; font-size: 16px; }
+  .tovar-nom { min-height: 32px; font-size: 13px; }
+  .tovar-karta { padding: 10px; }
+}
+
+@media (max-height: 700px) {
+  .yon-btn { padding: 5px 3px; font-size: 9.5px; }
+  .yon-btn svg { width: 17px; height: 17px; }
+  .yon-logo { width: 38px; height: 38px; font-size: 18px; margin-bottom: 6px; }
+  .modal { max-height: 94vh; }
+  .modal-tana { padding: 14px 16px; }
+}
+
+/* Tor ekran - savat paneli va tovar kartochkalari kichrayadi */
+@media (max-width: 1500px) {
+  .sotuv-ong { width: 420px; }
+  .tovar-setka { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); }
+}
+
+@media (max-width: 1320px) {
+  .sotuv-ong { width: 380px; }
+  .sotuv-chap { padding: 10px; }
+  .tovar-setka { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  .miqdor-inp { width: 54px; }
+  .tepa-ong { gap: 10px; font-size: 12px; }
+}
+
+/* Juda tor ekranlarda jadvallar ham siqiladi */
+@media (max-width: 1200px) {
+  .jadval th, .jadval td { padding: 7px 6px; }
+  .ustun-2, .ustun-3 { grid-template-columns: 1fr; }
+}

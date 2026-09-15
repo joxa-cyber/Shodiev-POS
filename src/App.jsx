@@ -88,6 +88,7 @@ export default function App() {
     <div className="app">
       <nav className="yon">
         <div className="yon-logo">S</div>
+        <div className="yon-royxat">
         {menyu.map((m) => (
           <button
             key={m.kalit}
@@ -101,6 +102,7 @@ export default function App() {
             )}
           </button>
         ))}
+        </div>
         <div className="yon-past">
           <button className="yon-btn" onClick={chiqish} title="Chiqish">
             <Ikonka nom="chiqish" />
