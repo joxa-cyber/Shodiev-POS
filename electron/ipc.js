@@ -1769,6 +1769,7 @@ const amallar = {
       db().prepare('DELETE FROM sotuvlar').run();
       db().prepare('DELETE FROM qarz_taqsim').run();
       db().prepare('DELETE FROM qarz_tolovlar').run();
+      db().prepare('DELETE FROM kassa_hisob').run(); // kassa sanoqlari sotuvlarsiz ma'nosiz
       db().prepare('UPDATE mijozlar SET qarz = 0, avans = 0').run();
       db().prepare('DELETE FROM telegram_navbat WHERE holat = 0').run();
       // qoldiqni kirimlar bo'yicha qayta hisoblaymiz
@@ -1808,16 +1809,27 @@ const amallar = {
         'qarz_taqsim',
         'sotuvlar',
         'qarz_tolovlar',
+        'kassa_hisob',
         'kirim_qatorlari',
         'kirimlar',
         'ombor',
+        'tovar_barcode',
+        'narx_tarix',
         'tovarlar',
         'mijozlar',
         'telegram_navbat',
         'jurnal',
       ]) {
-        db().prepare(`DELETE FROM ${j}`).run();
+        try {
+          db().prepare(`DELETE FROM ${j}`).run();
+        } catch (e) {
+          console.error(`tozalash (${j}):`, e.message);
+        }
       }
+      // avtomatik raqamlar ham noldan boshlansin
+      try {
+        db().prepare("DELETE FROM sqlite_sequence WHERE name NOT IN ('foydalanuvchilar','filiallar','kategoriyalar')").run();
+      } catch {}
     })();
     DB.jurnalYoz(u.id, 'hammasi_tozalandi', '');
     DB.sozlamaSaqla('tozalangan_sana', H.hozir());
