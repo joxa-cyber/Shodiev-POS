@@ -74,7 +74,7 @@ function tugayotganlarniTekshir(tovarIdlar, fid) {
         ogohlar.push(t);
       }
     }
-    if (ogohlar.length) {
+    if (ogohlar.length && DB.sozlama('telegram_tugash_yuborish', '1') === '1') {
       const l = ['⚠️ <b>Tovar tugayapti</b>', '', `🏪 ${filialNomi(fid)}`, ''];
       for (const t of ogohlar) {
         l.push(
@@ -562,7 +562,9 @@ const amallar = {
       return { qoldiq, ...t };
     })();
 
-    TG.navbatQosh(TG.qarzTolovXabari(mijoz.ism, s, usul, natija.qoldiq, filialNomi(fid), u.ism));
+    if (DB.sozlama('telegram_qarz_yuborish', '1') === '1') {
+      TG.navbatQosh(TG.qarzTolovXabari(mijoz.ism, s, usul, natija.qoldiq, filialNomi(fid), u.ism));
+    }
     DB.jurnalYoz(u.id, 'qarz_tolovi', `${mijoz.ism}: ${s} (${usul}), qoldiq ${natija.qoldiq}`);
     return natija;
   },
@@ -1064,7 +1066,8 @@ const amallar = {
       .run(fid, u.id, holat.dan, holat.gacha, holat.kutilgan_naqd, s, farq, holat.chek_soni, izoh);
 
     const belgi = Math.abs(farq) < 1 ? '✅' : farq > 0 ? '🟡' : '🔴';
-    TG.navbatQosh(
+    if (DB.sozlama('telegram_kassa_yuborish', '1') === '1')
+      TG.navbatQosh(
       [
         `${belgi} <b>Kassa hisobi</b>`,
         '',
@@ -1385,8 +1388,32 @@ const amallar = {
   // ---------- TELEGRAM ----------
   async 'telegram.sinov'() {
     rahbar();
-    await TG.sinov();
-    return true;
+    return TG.sinov();
+  },
+
+  // Chat ID bo'yicha ma'lumot (nomi, turi) - sozlamalar oynasi uchun
+  async 'telegram.chatMalumot'({ chat_id }) {
+    rahbar();
+    return TG.chatMalumot(chat_id);
+  },
+
+  // Ulangan chatlar ro'yxati (nomlari bilan)
+  async 'telegram.chatlar'() {
+    rahbar();
+    const natija = [];
+    for (const c of TG.chatlar()) {
+      try {
+        natija.push({ ...(await TG.chatMalumot(c)), ok: true });
+      } catch (e) {
+        natija.push({ id: c, nomi: c, turi: '?', ok: false, xato: e.message });
+      }
+    }
+    return natija;
+  },
+
+  async 'telegram.botniSozla'() {
+    rahbar();
+    return TG.botniSozla(true);
   },
 
   'telegram.holat'() {
@@ -1399,15 +1426,19 @@ const amallar = {
     // Bot bilan yozishgan oxirgi odamning chat_id sini topish
     const updates = await TG.apiChaqir('getUpdates', { timeout: 0 }, 15000);
     const chatlar = [];
+    const qosh = (chat) => {
+      if (!chat || chatlar.find((c) => String(c.id) === String(chat.id))) return;
+      chatlar.push({
+        id: String(chat.id),
+        ism: chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || String(chat.id),
+        turi: chat.type,
+        username: chat.username || '',
+      });
+    };
     for (const u of updates) {
-      const m = u.message;
-      if (m && m.chat && !chatlar.find((c) => c.id === m.chat.id)) {
-        chatlar.push({
-          id: m.chat.id,
-          ism: [m.chat.first_name, m.chat.last_name].filter(Boolean).join(' ') || m.chat.title || '',
-          username: m.chat.username || '',
-        });
-      }
+      if (u.message) qosh(u.message.chat);
+      if (u.callback_query) qosh(u.callback_query.message.chat);
+      if (u.my_chat_member) qosh(u.my_chat_member.chat);
     }
     return chatlar;
   },

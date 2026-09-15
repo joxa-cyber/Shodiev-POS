@@ -152,6 +152,38 @@ function qoldiqlar(filial_id, faqatKam = false) {
     .all(filial_id);
 }
 
+// Kassada qancha naqd bo'lishi kerak (oxirgi sanoqdan beri) - bot uchun
+function kassaXulosa(filial_id) {
+  const db = baza();
+  const fid = filial_id || 1;
+  const oxirgi = db.prepare('SELECT * FROM kassa_hisob WHERE filial_id = ? ORDER BY id DESC LIMIT 1').get(fid);
+  const dan = oxirgi ? oxirgi.gacha : bugun() + ' 00:00:00';
+  const gacha = hozir();
+  const s = db
+    .prepare(
+      `SELECT COUNT(*) AS chek, COALESCE(SUM(naqd),0) AS naqd, COALESCE(SUM(jami),0) AS jami,
+              COALESCE(SUM(karta),0) AS karta, COALESCE(SUM(terminal),0) AS terminal
+       FROM sotuvlar WHERE filial_id = ? AND sana > ? AND sana <= ?`
+    )
+    .get(fid, dan, gacha);
+  const q = db
+    .prepare(
+      `SELECT COALESCE(SUM(CASE WHEN usul='naqd' THEN summa ELSE 0 END),0) AS naqd
+       FROM qarz_tolovlar WHERE filial_id = ? AND sana > ? AND sana <= ?`
+    )
+    .get(fid, dan, gacha);
+  return {
+    dan,
+    gacha,
+    oxirgi,
+    chek: s.chek,
+    savdo: s.jami,
+    karta: s.karta,
+    terminal: s.terminal,
+    kutilgan: s.naqd + q.naqd,
+  };
+}
+
 function qarzdorlar() {
   return baza()
     .prepare(
@@ -214,6 +246,7 @@ module.exports = {
   jamiHisobot,
   qoldiqlar,
   qarzdorlar,
+  kassaXulosa,
   hisobotMatn,
   fmtMiqdor,
   sanaChiroyli,

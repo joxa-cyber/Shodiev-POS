@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { amal, vaqtChiroyli } from '../api.js';
 import { Tasdiq } from '../components/Ui.jsx';
+import TelegramSozlama from '../components/TelegramSozlama.jsx';
 
 export default function Sozlamalar({ toast }) {
   const [s, setS] = useState(null);
   const [printerlar, setPrinterlar] = useState([]);
   const [tab, setTab] = useState('dokon');
-  const [chatlar, setChatlar] = useState([]);
   const [backuplar, setBackuplar] = useState([]);
   const [band, setBand] = useState(false);
   const [tasdiq, setTasdiq] = useState(null);
@@ -44,27 +44,6 @@ export default function Sozlamalar({ toast }) {
       toast.ok('Sinov cheki printerga yuborildi');
     } catch (e) {
       toast.xato('Chop etishda xato: ' + e.message);
-    }
-  }
-
-  async function telegramSinov() {
-    try {
-      await amal('sozlama.saqla', { telegram_token: s.telegram_token, telegram_chat_id: s.telegram_chat_id });
-      await amal('telegram.sinov');
-      toast.ok('Telegramga sinov xabari yuborildi ✓');
-    } catch (e) {
-      toast.xato('Telegram xatosi: ' + e.message);
-    }
-  }
-
-  async function chatIdTop() {
-    try {
-      await amal('sozlama.saqla', { telegram_token: s.telegram_token });
-      const r = await amal('telegram.chatIdTop');
-      setChatlar(r);
-      if (!r.length) toast.ogoh("Hech kim botga yozmagan. Rahbar botga /start yozsin, keyin qayta bosing.");
-    } catch (e) {
-      toast.xato(e.message);
     }
   }
 
@@ -153,84 +132,7 @@ export default function Sozlamalar({ toast }) {
           </div>
         )}
 
-        {tab === 'telegram' && (
-          <div className="karta">
-            <p className="xira kichik" style={{ marginBottom: 16, lineHeight: 1.6 }}>
-              <b>Qanday sozlanadi:</b>
-              <br />
-              1. Telegramda <b>@BotFather</b> ga kiring → <b>/newbot</b> → bot nomini kiriting → token beradi.
-              <br />
-              2. Tokenni quyiga joylang.
-              <br />
-              3. Rahbar o'z Telegramidan botni topib <b>/start</b> bossin.
-              <br />
-              4. «Chat ID ni aniqlash» tugmasini bosing va rahbarni tanlang.
-            </p>
-
-            <div className="maydon">
-              <label className="yorliq">Bot tokeni</label>
-              <input
-                className="inp"
-                value={s.telegram_token}
-                onChange={oz('telegram_token')}
-                placeholder="1234567890:AAG..."
-              />
-            </div>
-
-            <div className="maydon">
-              <label className="yorliq">Rahbarning Chat ID si</label>
-              <div className="qator">
-                <input className="inp" value={s.telegram_chat_id} onChange={oz('telegram_chat_id')} placeholder="123456789" />
-                <button className="btn" onClick={chatIdTop}>
-                  Chat ID ni aniqlash
-                </button>
-              </div>
-              {chatlar.length > 0 && (
-                <div className="karta" style={{ marginTop: 10, padding: 8 }}>
-                  {chatlar.map((c) => (
-                    <div
-                      key={c.id}
-                      className="qator"
-                      style={{ padding: '8px 10px', cursor: 'pointer', borderRadius: 8 }}
-                      onClick={() => {
-                        setS({ ...s, telegram_chat_id: String(c.id) });
-                        setChatlar([]);
-                      }}
-                    >
-                      <span>
-                        {c.ism} {c.username && <span className="xira">@{c.username}</span>}
-                      </span>
-                      <span className="xira qator-oxiri">{c.id}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ margin: '18px 0' }}>
-              <label className="qator kichik" style={{ gap: 8, padding: '5px 0' }}>
-                <input type="checkbox" checked={s.telegram_chek_yuborish === '1'} onChange={belgi('telegram_chek_yuborish')} />
-                Har bir sotuv (chek) rahbarga yuborilsin
-              </label>
-              <label className="qator kichik" style={{ gap: 8, padding: '5px 0' }}>
-                <input type="checkbox" checked={s.telegram_kirim_yuborish === '1'} onChange={belgi('telegram_kirim_yuborish')} />
-                Tovar kirimi haqida xabar yuborilsin
-              </label>
-              <label className="qator kichik" style={{ gap: 8, padding: '5px 0' }}>
-                <input type="checkbox" checked={s.telegram_kunlik_hisobot === '1'} onChange={belgi('telegram_kunlik_hisobot')} />
-                Kunlik yakuniy hisobot yuborilsin
-              </label>
-              <div className="maydon" style={{ maxWidth: 180, marginTop: 8 }}>
-                <label className="yorliq">Kunlik hisobot vaqti</label>
-                <input className="inp" type="time" value={s.telegram_hisobot_vaqti} onChange={oz('telegram_hisobot_vaqti')} />
-              </div>
-            </div>
-
-            <button className="btn btn-kok" onClick={telegramSinov}>
-              📨 Sinov xabarini yuborish
-            </button>
-          </div>
-        )}
+        {tab === 'telegram' && <TelegramSozlama s={s} setS={setS} saqla={saqla} toast={toast} />}
 
         {tab === 'backup' && (
           <div className="karta">

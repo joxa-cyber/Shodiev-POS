@@ -52,6 +52,7 @@ function migratsiya() {
     ['sotuvlar', 'qarz_qoldiq', 'REAL NOT NULL DEFAULT 0'], // shu chekdan qancha qarz qolgan
     ['mijozlar', 'avans', 'REAL NOT NULL DEFAULT 0'], // ortiqcha to'langan pul
     ['sotuvlar', 'avans_ishlatildi', 'REAL NOT NULL DEFAULT 0'], // shu chekda ishlatilgan avans
+    ['telegram_navbat', 'chat_id', "TEXT DEFAULT ''"], // xabar qaysi chatga ketadi
   ];
   for (const [jadval, ustun, tur] of yangiUstunlar) {
     const bor = db.prepare(`PRAGMA table_info(${jadval})`).all().some((c) => c.name === ustun);
@@ -77,6 +78,10 @@ const STANDART_SOZLAMALAR = {
   avto_chop: '1',
   telegram_token: '',
   telegram_chat_id: '',
+  telegram_kassa_yuborish: '1',
+  telegram_qarz_yuborish: '1',
+  telegram_tugash_yuborish: '1',
+  telegram_bot_sozlandi: '',
   telegram_chek_yuborish: '1',
   telegram_kirim_yuborish: '1',
   telegram_kunlik_hisobot: '1',
