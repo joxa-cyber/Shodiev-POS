@@ -27,6 +27,35 @@ function chatlar() {
     .filter(Boolean);
 }
 
+// Botga yozgan chatlarni eslab qolamiz - sozlamalar oynasida ro'yxat bo'lib chiqadi
+function korilganChatQoy(chat) {
+  if (!chat) return;
+  try {
+    const royxat = JSON.parse(sozlama('telegram_korilgan', '[]') || '[]');
+    const id = String(chat.id);
+    const nomi =
+      chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(' ') || id;
+    const bor = royxat.find((x) => x.id === id);
+    if (bor) {
+      bor.nomi = nomi;
+      bor.vaqt = Date.now();
+    } else {
+      royxat.push({ id, nomi, turi: chat.type, username: chat.username || '', vaqt: Date.now() });
+    }
+    // oxirgi 20 tasini saqlaymiz
+    royxat.sort((a, b) => b.vaqt - a.vaqt);
+    sozlamaSaqla('telegram_korilgan', JSON.stringify(royxat.slice(0, 20)));
+  } catch {}
+}
+
+function korilganChatlar() {
+  try {
+    return JSON.parse(sozlama('telegram_korilgan', '[]') || '[]');
+  } catch {
+    return [];
+  }
+}
+
 function sozlanganmi() {
   return Boolean(token() && chatlar().length);
 }
@@ -500,6 +529,7 @@ async function yangilanishlarniOl() {
       // --- tugma bosilgan ---
       if (u.callback_query) {
         const cq = u.callback_query;
+        korilganChatQoy(cq.message.chat);
         const chatId = String(cq.message.chat.id);
         try {
           await apiChaqir('answerCallbackQuery', { callback_query_id: cq.id });
@@ -526,7 +556,9 @@ async function yangilanishlarniOl() {
 
       // --- oddiy xabar / buyruq ---
       const msg = u.message;
-      if (!msg || !msg.text) continue;
+      if (!msg) continue;
+      korilganChatQoy(msg.chat);
+      if (!msg.text) continue;
       const chatId = String(msg.chat.id);
       if (!ruxsat.includes(chatId)) {
         // notanish chat - faqat bir marta javob beramiz
@@ -703,6 +735,7 @@ module.exports = {
   faylYubor,
   chatlar,
   chatMalumot,
+  korilganChatlar,
   botniSozla,
   ishgaTushir,
   toxtat,

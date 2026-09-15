@@ -31,21 +31,28 @@ export default function TelegramSozlama({ s, setS, saqla, toast }) {
   async function chatQosh(id) {
     const kod = String(id).trim();
     if (!kod) return;
-    if (chatRoyxati().includes(kod)) return toast.ogoh('Bu chat allaqachon qo\'shilgan');
     setBand(true);
     try {
       await amal('sozlama.saqla', { telegram_token: s.telegram_token });
+      // Joriy ro'yxatni bazadan olamiz - ketma-ket qo'shganda bir-birini o'chirmasligi uchun
+      const hozirgi = ((await amal('sozlama.hammasi')).telegram_chat_id || '')
+        .split(/[\s,;]+/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+      if (hozirgi.includes(kod)) {
+        toast.ogoh("Bu chat allaqachon qo'shilgan");
+        return;
+      }
       const m = await amal('telegram.chatMalumot', { chat_id: kod });
-      const yangi = [...chatRoyxati(), kod].join(',');
-      setS({ ...s, telegram_chat_id: yangi });
+      const yangi = [...hozirgi, kod].join(',');
       await amal('sozlama.saqla', { telegram_chat_id: yangi });
+      setS((oldin) => ({ ...oldin, telegram_chat_id: yangi }));
       toast.ok(`«${m.nomi}» qo'shildi`);
       setYangiChat('');
-      setTopilgan([]);
       setTimeout(chatlarniYukla, 300);
     } catch (e) {
       toast.xato(
-        'Chat topilmadi: ' + e.message + '. Guruh bo\'lsa — botni guruhga qo\'shganingizga ishonch hosil qiling.'
+        'Chat topilmadi: ' + e.message + ". Guruh bo'lsa — botni guruhga qo'shganingizga ishonch hosil qiling."
       );
     } finally {
       setBand(false);
@@ -56,7 +63,7 @@ export default function TelegramSozlama({ s, setS, saqla, toast }) {
     const yangi = chatRoyxati()
       .filter((x) => x !== String(id))
       .join(',');
-    setS({ ...s, telegram_chat_id: yangi });
+    setS((oldin) => ({ ...oldin, telegram_chat_id: yangi }));
     await amal('sozlama.saqla', { telegram_chat_id: yangi });
     toast.ok("Chat ro'yxatdan chiqarildi");
     setTimeout(chatlarniYukla, 300);
@@ -171,27 +178,54 @@ export default function TelegramSozlama({ s, setS, saqla, toast }) {
           <button className="btn" onClick={aniqla} disabled={band || !s.telegram_token}>
             🔍 Aniqlash
           </button>
+          {topilgan.filter((c) => !chatRoyxati().includes(String(c.id))).length > 1 && (
+            <button
+              className="btn btn-kok"
+              disabled={band}
+              onClick={async () => {
+                for (const c of topilgan.filter((x) => !chatRoyxati().includes(String(x.id)))) {
+                  await chatQosh(c.id);
+                }
+              }}
+            >
+              Hammasini qo'shish
+            </button>
+          )}
         </div>
 
         {topilgan.length > 0 && (
           <div className="karta" style={{ marginTop: 10, padding: 8 }}>
-            <div className="xira kichik" style={{ padding: '4px 10px' }}>
-              Botga yozgan chatlar — qo'shish uchun bosing:
+            <div className="qator kichik xira" style={{ padding: '4px 10px' }}>
+              <span>Botga yozgan chatlar — qo'shish uchun bosing (bir nechtasini ham):</span>
+              <button className="btn btn-kichik qator-oxiri" onClick={() => setTopilgan([])}>
+                Yopish
+              </button>
             </div>
-            {topilgan.map((c) => (
-              <div
-                key={c.id}
-                className="qator"
-                style={{ padding: '8px 10px', cursor: 'pointer', borderRadius: 8 }}
-                onClick={() => chatQosh(c.id)}
-              >
-                <span>{c.turi === 'private' ? '🙍' : '👥'}</span>
-                <span>
-                  {c.ism} {c.username && <span className="xira">@{c.username}</span>}
-                </span>
-                <span className="xira kichik qator-oxiri">{c.id}</span>
-              </div>
-            ))}
+            {topilgan.map((c) => {
+              const qoshilgan = chatRoyxati().includes(String(c.id));
+              return (
+                <div
+                  key={c.id}
+                  className="qator"
+                  style={{
+                    padding: '9px 10px',
+                    cursor: qoshilgan ? 'default' : 'pointer',
+                    borderRadius: 8,
+                    opacity: qoshilgan ? 0.6 : 1,
+                    background: qoshilgan ? 'var(--yashil-och)' : undefined,
+                  }}
+                  onClick={() => !qoshilgan && chatQosh(c.id)}
+                >
+                  <span>{c.turi === 'private' ? '🙍' : '👥'}</span>
+                  <span>
+                    {c.ism} {c.username && <span className="xira">@{c.username}</span>}
+                  </span>
+                  <span className="xira kichik qator-oxiri">
+                    {qoshilgan ? "✅ qo'shilgan" : c.id}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

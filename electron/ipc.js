@@ -1459,6 +1459,10 @@ const amallar = {
       if (u.callback_query) qosh(u.callback_query.message.chat);
       if (u.my_chat_member) qosh(u.my_chat_member.chat);
     }
+    // dastur ilgari ko'rgan chatlarni ham qo'shamiz
+    for (const c of TG.korilganChatlar()) {
+      qosh({ id: c.id, title: c.turi === 'private' ? null : c.nomi, first_name: c.nomi, type: c.turi, username: c.username });
+    }
     return chatlar;
   },
 
